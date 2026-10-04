@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}{{ pelanggan.nama }} - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Detail Pelanggan</h2>
+
+<div class="detail-card">
+    <div class="detail-row">
+        <span class="detail-label">ID</span>
+        <span class="detail-value">{{ pelanggan.id }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Nama</span>
+        <span class="detail-value">{{ pelanggan.nama }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Email</span>
+        <span class="detail-value">{{ pelanggan.email if pelanggan.email else '-' }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Telepon</span>
+        <span class="detail-value">{{ pelanggan.telepon if pelanggan.telepon else '-' }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Alamat</span>
+        <span class="detail-value">{{ pelanggan.alamat if pelanggan.alamat else '-' }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Dibuat</span>
+        <span class="detail-value">{{ pelanggan.created_at }}</span>
+    </div>
+</div>
+
+<div class="form-actions">
+    <a href="{{ url_for('edit_pelanggan', id=pelanggan.id) }}" class="btn btn-primary">Edit</a>
+    <form action="{{ url_for('delete_pelanggan', id=pelanggan.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Yakin ingin hapus pelanggan ini?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-delete">Hapus</button>
+    </form>
+    <a href="{{ url_for('pelanggan_index') }}" class="btn btn-secondary">Kembali</a>
+</div>
+{% endblock %}

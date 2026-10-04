@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.nama }} - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Detail Item</h2>
+
+<div class="detail-card">
+    <div class="detail-row">
+        <span class="detail-label">ID</span>
+        <span class="detail-value">{{ item.id }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Nama Item</span>
+        <span class="detail-value">{{ item.nama }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Kategori</span>
+        <span class="detail-value"><span class="category-badge">{{ item.category }}</span></span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Harga Pokok</span>
+        <span class="detail-value">{{ item.harga_pokok | format_rupiah }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Harga Jual</span>
+        <span class="detail-value">{{ item.harga_jual | format_rupiah }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Margin</span>
+        <span class="detail-value {% if item.margin > 0 %}margin-positive{% elif item.margin < 0 %}margin-negative{% endif %}">
+            {{ item.margin | format_rupiah }}
+            {% if item.harga_pokok > 0 %}
+                ({{ "%.1f"|format(item.margin / item.harga_pokok * 100) }}%)
+            {% endif %}
+        </span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Dibuat</span>
+        <span class="detail-value">{{ item.created_at }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Diupdate</span>
+        <span class="detail-value">{{ item.updated_at }}</span>
+    </div>
+</div>
+
+<div class="form-actions">
+    <a href="{{ url_for('edit_item', id=item.id) }}" class="btn btn-primary">Edit</a>
+    <form action="{{ url_for('delete_item', id=item.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Yakin ingin hapus item ini?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-delete">Hapus</button>
+    </form>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">Kembali</a>
+</div>
+{% endblock %}

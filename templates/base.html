@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CRUD Item{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Manajemen Item</h1>
+            <nav>
+                <a href="{{ url_for('index') }}" class="btn btn-nav">Daftar Item</a>
+                <a href="{{ url_for('create_item') }}" class="btn btn-nav btn-primary">+ Tambah Item</a>
+                <a href="{{ url_for('kategori_index') }}" class="btn btn-nav">Data Kategori</a>
+                <a href="{{ url_for('pelanggan_index') }}" class="btn btn-nav">Data Pelanggan</a>
+            </nav>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer>
+            <p>CRUD Item &copy; 2024 - Flask + SQLite</p>
+        </footer>
+    </div>
+</body>
+</html>

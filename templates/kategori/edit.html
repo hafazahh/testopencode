@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Kategori - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Edit Kategori</h2>
+
+<form method="POST" action="{{ url_for('edit_kategori', id=kategori.id) }}" class="form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="form-group">
+        <label for="nama">Nama Kategori</label>
+        <input type="text" id="nama" name="nama" value="{{ kategori.nama }}" required placeholder="Masukkan nama kategori">
+    </div>
+
+    <div class="form-group">
+        <label for="deskripsi">Deskripsi</label>
+        <textarea id="deskripsi" name="deskripsi" rows="3" placeholder="Masukkan deskripsi (opsional)">{{ kategori.deskripsi if kategori.deskripsi else '' }}</textarea>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Update</button>
+        <a href="{{ url_for('kategori_index') }}" class="btn btn-secondary">Batal</a>
+    </div>
+</form>
+{% endblock %}

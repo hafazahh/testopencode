@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Item - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Edit Item</h2>
+
+<form method="POST" action="{{ url_for('edit_item', id=item.id) }}" class="form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="form-group">
+        <label for="nama">Nama Item</label>
+        <input type="text" id="nama" name="nama" value="{{ item.nama }}" required placeholder="Masukkan nama item">
+    </div>
+
+    <div class="form-group">
+        <label for="category">Kategori</label>
+        <select id="category" name="category" required>
+            <option value="">-- Pilih Kategori --</option>
+            {% for cat in categories %}
+            <option value="{{ cat.nama }}" {% if item.category == cat.nama %}selected{% endif %}>{{ cat.nama }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="harga_pokok">Harga Pokok (Rp)</label>
+        <input type="number" id="harga_pokok" name="harga_pokok" value="{{ item.harga_pokok }}" required placeholder="Masukkan harga pokok" min="0" step="0.01">
+    </div>
+
+    <div class="form-group">
+        <label for="harga_jual">Harga Jual (Rp)</label>
+        <input type="number" id="harga_jual" name="harga_jual" value="{{ item.harga_jual }}" required placeholder="Masukkan harga jual" min="0" step="0.01">
+    </div>
+
+    <div class="form-group">
+        <label>Margin (Otomatis)</label>
+        <div class="margin-preview" id="marginPreview">Rp {{ "%.0f"|format(item.harga_jual - item.harga_pokok) }}</div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Update</button>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Batal</a>
+    </div>
+</form>
+
+<script>
+    const hargaPokokInput = document.getElementById('harga_pokok');
+    const hargaJualInput = document.getElementById('harga_jual');
+    const marginPreview = document.getElementById('marginPreview');
+
+    function updateMargin() {
+        const pokok = parseFloat(hargaPokokInput.value) || 0;
+        const jual = parseFloat(hargaJualInput.value) || 0;
+        const margin = jual - pokok;
+        marginPreview.textContent = 'Rp ' + margin.toLocaleString('id-ID');
+        if (margin > 0) {
+            marginPreview.className = 'margin-preview margin-positive';
+        } else if (margin < 0) {
+            marginPreview.className = 'margin-preview margin-negative';
+        } else {
+            marginPreview.className = 'margin-preview';
+        }
+    }
+
+    hargaPokokInput.addEventListener('input', updateMargin);
+    hargaJualInput.addEventListener('input', updateMargin);
+</script>
+{% endblock %}

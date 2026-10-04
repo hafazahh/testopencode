@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Daftar Pelanggan - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Daftar Pelanggan</h2>
+
+{% if pelanggan %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>No</th>
+                <th>Nama</th>
+                <th>Email</th>
+                <th>Telepon</th>
+                <th>Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in pelanggan %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ p.nama }}</td>
+                <td>{{ p.email if p.email else '-' }}</td>
+                <td>{{ p.telepon if p.telepon else '-' }}</td>
+                <td class="actions">
+                    <a href="{{ url_for('view_pelanggan', id=p.id) }}" class="btn btn-sm btn-view">Lihat</a>
+                    <a href="{{ url_for('edit_pelanggan', id=p.id) }}" class="btn btn-sm btn-edit">Edit</a>
+                    <form action="{{ url_for('delete_pelanggan', id=p.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Yakin ingin hapus pelanggan ini?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm btn-delete">Hapus</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="empty-state">
+        <p>Belum ada pelanggan. <a href="{{ url_for('create_pelanggan') }}">Tambah pelanggan pertama</a></p>
+    </div>
+{% endif %}
+
+<div class="form-actions" style="margin-top: 20px;">
+    <a href="{{ url_for('create_pelanggan') }}" class="btn btn-primary">+ Tambah Pelanggan</a>
+</div>
+{% endblock %}
