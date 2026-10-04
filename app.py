@@ -940,6 +940,7 @@ def create_role():
     """Create new role."""
     menus = ['items', 'kategori', 'pelanggan', 'users', 'roles']
     actions = ['view', 'create', 'edit', 'delete']
+    db = get_db()
     if request.method == 'POST':
         nama = request.form.get('nama', '').strip()
         deskripsi = request.form.get('deskripsi', '').strip()
@@ -952,8 +953,6 @@ def create_role():
         elif len(nama) > 50:
             errors.append('Nama role maksimal 50 karakter!')
         else:
-            from sqlite3 import IntegrityError
-            db = get_db()
             existing = db.execute('SELECT id FROM roles WHERE LOWER(nama) = LOWER(?)', (nama,)).fetchone()
             if existing:
                 errors.append(f"Role '{nama}' sudah ada!")
