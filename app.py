@@ -247,6 +247,21 @@ def inject_user():
     return {'current_user': None, 'current_role': None, 'user_perms': {}}
 
 
+@app.route('/init-db')
+def init_db_route():
+    """Debug route: manually trigger init_db and report result."""
+    try:
+        init_db()
+        db = sqlite3.connect(DATABASE)
+        tables = [t[0] for t in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+        users = db.execute('SELECT id, username, role_id FROM users').fetchall() if 'users' in tables else []
+        roles = db.execute('SELECT id, nama FROM roles').fetchall() if 'roles' in tables else []
+        db.close()
+        return f"OK. Tables: {tables}. Users: {users}. Roles: {roles}"
+    except Exception as e:
+        return f"ERROR: {type(e).__name__}: {e}"
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page."""
