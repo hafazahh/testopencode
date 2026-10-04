@@ -36,6 +36,7 @@ def close_db(exception=None):
 def init_db():
     """Initialize database with schema."""
     db = sqlite3.connect(DATABASE, timeout=30)
+    db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA busy_timeout=30000")
     db.execute('''
