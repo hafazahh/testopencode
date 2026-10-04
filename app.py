@@ -331,9 +331,9 @@ def not_found(error):
 
 @app.errorhandler(500)
 def internal_error(error):
-    """Handle 500 errors with traceback for debugging."""
-    import traceback
-    return f"<pre>{traceback.format_exc()}</pre>", 500
+    """Handle 500 errors."""
+    flash('Terjadi kesalahan internal!', 'error')
+    return redirect(url_for('index'))
 
 
 @app.errorhandler(403)
