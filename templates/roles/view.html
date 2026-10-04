@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Detail Role - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Detail Role</h2>
+<table class="data-table">
+    <tbody>
+        <tr><th>ID</th><td>{{ role.id }}</td></tr>
+        <tr><th>Nama</th><td>{{ role.nama }}</td></tr>
+        <tr><th>Deskripsi</th><td>{{ role.deskripsi or '-' }}</td></tr>
+        <tr><th>User Count</th><td>{{ user_count }}</td></tr>
+        <tr><th>Dibuat</th><td>{{ role.created_at }}</td></tr>
+    </tbody>
+</table>
+
+<h3>Permissions</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Menu</th>
+            <th>View</th>
+            <th>Create</th>
+            <th>Edit</th>
+            <th>Delete</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for menu in ['items', 'kategori', 'pelanggan', 'users', 'roles'] %}
+        <tr>
+            <td><strong>{{ menu }}</strong></td>
+            {% for action in ['view', 'create', 'edit', 'delete'] %}
+            <td>{% if action in permissions.get(menu, []) %}✅{% else %}—{% endif %}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="form-actions" style="margin-top: 20px;">
+    <a href="{{ url_for('roles_index') }}" class="btn">Kembali</a>
+    {% if 'edit' in user_perms.get('roles', []) %}
+    <a href="{{ url_for('edit_role', id=role.id) }}" class="btn btn-primary">Edit</a>
+    {% endif %}
+</div>
+{% endblock %}

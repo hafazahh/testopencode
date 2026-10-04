@@ -309,7 +309,13 @@ def login():
             flash(f'Selamat datang, {username}!', 'success')
             return redirect(url_for('index'))
         flash('Username atau password salah!', 'error')
-    return render_template('login.html')
+    # Fetch non-admin users for login info display
+    db = get_db()
+    non_admin_users = db.execute(
+        'SELECT u.username, r.nama as role_nama FROM users u JOIN roles r ON u.role_id = r.id WHERE r.nama != ? ORDER BY u.username ASC',
+        ('admin',)
+    ).fetchall()
+    return render_template('login.html', non_admin_users=non_admin_users)
 
 
 @app.route('/logout', methods=['POST'])
@@ -801,6 +807,21 @@ def users_index():
     return render_template('users/index.html', users=users)
 
 
+@app.route('/users/<int:id>')
+@has_permission('users', 'view')
+def view_user(id):
+    """View single user details."""
+    db = get_db()
+    user = db.execute(
+        'SELECT u.*, r.nama as role_nama FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?',
+        (id,)
+    ).fetchone()
+    if user is None:
+        flash('User tidak ditemukan!', 'error')
+        return redirect(url_for('users_index'))
+    return render_template('users/view.html', user=user)
+
+
 @app.route('/users/create', methods=['GET', 'POST'])
 @has_permission('users', 'create')
 def create_user():
@@ -932,6 +953,20 @@ def roles_index():
         'FROM roles r ORDER BY r.nama ASC'
     ).fetchall()
     return render_template('roles/index.html', roles=roles)
+
+
+@app.route('/roles/<int:id>')
+@has_permission('roles', 'view')
+def view_role(id):
+    """View single role details."""
+    db = get_db()
+    role = db.execute('SELECT * FROM roles WHERE id = ?', (id,)).fetchone()
+    if role is None:
+        flash('Role tidak ditemukan!', 'error')
+        return redirect(url_for('roles_index'))
+    permissions = json.loads(role['permissions']) if role['permissions'] else {}
+    user_count = db.execute('SELECT COUNT(*) FROM users WHERE role_id = ?', (id,)).fetchone()[0]
+    return render_template('roles/view.html', role=role, permissions=permissions, user_count=user_count)
 
 
 @app.route('/roles/create', methods=['GET', 'POST'])

@@ -29,8 +29,9 @@
             <td>{{ role.user_count }}</td>
             {% if 'edit' in user_perms.get('roles', []) or 'delete' in user_perms.get('roles', []) %}
             <td>
+                <a href="{{ url_for('view_role', id=role.id) }}" class="btn btn-small btn-view">Lihat</a>
                 {% if 'edit' in user_perms.get('roles', []) %}
-                <a href="{{ url_for('edit_role', id=role.id) }}" class="btn btn-small">Edit</a>
+                <a href="{{ url_for('edit_role', id=role.id) }}" class="btn btn-small btn-edit">Edit</a>
                 {% endif %}
                 {% if 'delete' in user_perms.get('roles', []) and role.user_count == 0 %}
                 <form method="POST" action="{{ url_for('delete_role', id=role.id) }}" style="display:inline;" onsubmit="return confirm('Hapus role ini?');">

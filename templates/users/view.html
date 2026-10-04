@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Detail User - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Detail User</h2>
+<table class="data-table">
+    <tbody>
+        <tr><th>ID</th><td>{{ user.id }}</td></tr>
+        <tr><th>Username</th><td>{{ user.username }}</td></tr>
+        <tr><th>Role</th><td>{{ user.role_nama }}</td></tr>
+        <tr><th>Dibuat</th><td>{{ user.created_at }}</td></tr>
+    </tbody>
+</table>
+<div class="form-actions" style="margin-top: 20px;">
+    <a href="{{ url_for('users_index') }}" class="btn">Kembali</a>
+    {% if 'edit' in user_perms.get('users', []) %}
+    <a href="{{ url_for('edit_user', id=user.id) }}" class="btn btn-primary">Edit</a>
+    {% endif %}
+</div>
+{% endblock %}

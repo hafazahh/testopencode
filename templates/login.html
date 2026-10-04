@@ -39,24 +39,28 @@
 
 <div class="login-info">
     <h3>Informasi Login</h3>
-    <p>Gunakan kredensial berikut untuk masuk:</p>
+    <p>User yang terdaftar (selain admin):</p>
+    {% if non_admin_users %}
     <table class="data-table">
         <thead>
             <tr>
                 <th>Username</th>
-                <th>Password</th>
                 <th>Role</th>
             </tr>
         </thead>
         <tbody>
+            {% for u in non_admin_users %}
             <tr>
-                <td>admin</td>
-                <td>admin123</td>
-                <td>admin</td>
+                <td>{{ u.username }}</td>
+                <td>{{ u.role_nama }}</td>
             </tr>
+            {% endfor %}
         </tbody>
     </table>
-    <p class="login-info-note">Ganti password default setelah login pertama untuk keamanan.</p>
+    {% else %}
+    <p>Belum ada user non-admin. Buat user baru melalui akun admin.</p>
+    {% endif %}
+    <p class="login-info-note">Admin: username <code>admin</code>, password <code>admin123</code>. Ganti password default setelah login pertama.</p>
 </div>
         </main>
     </div>
