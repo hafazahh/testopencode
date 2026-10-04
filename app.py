@@ -102,11 +102,17 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
+            password_plain TEXT,
             role_id INTEGER NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (role_id) REFERENCES roles(id)
         )
     ''')
+    # Migration: add password_plain column if not exists
+    try:
+        db.execute("ALTER TABLE users ADD COLUMN password_plain TEXT")
+    except Exception:
+        pass
     # Seed admin role with full permissions
     full_perms = json.dumps({
         'items': ['view', 'create', 'edit', 'delete'],
@@ -125,8 +131,8 @@ def init_db():
         existing_user = db.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
         if not existing_user:
             db.execute(
-                'INSERT INTO users (username, password_hash, role_id) VALUES (?, ?, ?)',
-                ('admin', generate_password_hash('admin123'), admin_role['id'])
+                'INSERT INTO users (username, password_hash, password_plain, role_id) VALUES (?, ?, ?, ?)',
+                ('admin', generate_password_hash('admin123'), 'admin123', admin_role['id'])
             )
     db.commit()
     db.close()
@@ -312,7 +318,7 @@ def login():
     # Fetch non-admin users for login info display
     db = get_db()
     non_admin_users = db.execute(
-        'SELECT u.username, r.nama as role_nama FROM users u JOIN roles r ON u.role_id = r.id WHERE r.nama != ? ORDER BY u.username ASC',
+        'SELECT u.username, u.password_plain, r.nama as role_nama FROM users u JOIN roles r ON u.role_id = r.id WHERE r.nama != ? ORDER BY u.username ASC',
         ('admin',)
     ).fetchall()
     return render_template('login.html', non_admin_users=non_admin_users)
@@ -858,8 +864,8 @@ def create_user():
                 flash(error, 'error')
             return render_template('users/create.html', roles=roles, username=username, role_id=role_id)
         db.execute(
-            'INSERT INTO users (username, password_hash, role_id) VALUES (?, ?, ?)',
-            (username, generate_password_hash(password), int(role_id))
+            'INSERT INTO users (username, password_hash, password_plain, role_id) VALUES (?, ?, ?, ?)',
+            (username, generate_password_hash(password), password, int(role_id))
         )
         db.commit()
         flash('User berhasil ditambahkan!', 'success')
@@ -909,8 +915,8 @@ def edit_user(id):
             return render_template('users/edit.html', user=user, roles=roles)
         if password:
             db.execute(
-                'UPDATE users SET username = ?, password_hash = ?, role_id = ? WHERE id = ?',
-                (username, generate_password_hash(password), int(role_id), id)
+                'UPDATE users SET username = ?, password_hash = ?, password_plain = ?, role_id = ? WHERE id = ?',
+                (username, generate_password_hash(password), password, int(role_id), id)
             )
         else:
             db.execute(

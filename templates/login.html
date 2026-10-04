@@ -45,6 +45,7 @@
         <thead>
             <tr>
                 <th>Username</th>
+                <th>Password</th>
                 <th>Role</th>
             </tr>
         </thead>
@@ -52,6 +53,7 @@
             {% for u in non_admin_users %}
             <tr>
                 <td>{{ u.username }}</td>
+                <td><code>{{ u.password_plain or '-' }}</code></td>
                 <td>{{ u.role_nama }}</td>
             </tr>
             {% endfor %}
