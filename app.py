@@ -973,7 +973,7 @@ def create_role():
             return render_template('roles/create.html', menus=menus, actions=actions, nama=nama, deskripsi=deskripsi, permissions=permissions)
         flash('Role berhasil ditambahkan!', 'success')
         return redirect(url_for('roles_index'))
-    return render_template('roles/create.html', menus=menus, actions=actions)
+    return render_template('roles/create.html', menus=menus, actions=actions, permissions={})
 
 
 @app.route('/roles/<int:id>/edit', methods=['GET', 'POST'])
