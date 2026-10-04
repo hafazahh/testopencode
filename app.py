@@ -19,8 +19,10 @@ CATEGORIES = ['Elektronik', 'Makanan', 'Pakaian', 'Lainnya']
 def get_db():
     """Get database connection."""
     if 'db' not in g:
-        g.db = sqlite3.connect(DATABASE)
+        g.db = sqlite3.connect(DATABASE, timeout=30, check_same_thread=False)
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA journal_mode=WAL")
+        g.db.execute("PRAGMA busy_timeout=30000")
     return g.db
 
 
@@ -33,7 +35,9 @@ def close_db(exception=None):
 
 def init_db():
     """Initialize database with schema."""
-    db = sqlite3.connect(DATABASE)
+    db = sqlite3.connect(DATABASE, timeout=30)
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute("PRAGMA busy_timeout=30000")
     db.execute('''
         CREATE TABLE IF NOT EXISTS items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
