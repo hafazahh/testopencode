@@ -160,39 +160,6 @@ h2 {
 }
 
 /* Table */
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
-
-.data-table th,
-.data-table td {
-    padding: 12px 15px;
-    text-align: left;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.data-table th {
-    background-color: #667eea;
-    color: white;
-    font-weight: 600;
-}
-
-.data-table tr:hover {
-    background-color: #f8f9fa;
-}
-
-.data-table .numeric {
-    text-align: right;
-    font-family: 'Courier New', monospace;
-}
-
-.data-table .actions {
-    display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
-}
 
 .inline-form {
     display: inline;
@@ -355,6 +322,85 @@ footer {
     padding: 20px;
     color: #6c757d;
     margin-top: 20px;
+}
+
+/* Login Info Section */
+.login-info {
+    max-width: 400px;
+    margin: 30px auto;
+    background: #f8f9fa;
+    padding: 25px;
+    border-radius: 10px;
+    border: 1px solid #dee2e6;
+}
+.login-info h3 {
+    margin-bottom: 15px;
+    color: #444;
+    font-size: 1.1rem;
+}
+.login-info p {
+    margin-bottom: 10px;
+    color: #555;
+}
+.login-info .data-table {
+    margin: 15px 0;
+}
+.login-info .data-table th,
+.login-info .data-table td {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+}
+.login-info-note {
+    font-size: 0.85rem;
+    color: #856404;
+    background: #fff3cd;
+    padding: 10px 15px;
+    border-radius: 6px;
+    border: 1px solid #ffc107;
+    margin-top: 15px;
+}
+
+/* Enhanced Data Table Styling */
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    margin-top: 10px;
+}
+.data-table thead th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    padding: 14px 18px;
+    border-bottom: none;
+    text-align: left;
+}
+.data-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+.data-table tbody tr:hover {
+    background-color: #e9ecef;
+    transition: background-color 0.2s ease;
+}
+.data-table tbody td {
+    padding: 12px 18px;
+    border-bottom: 1px solid #e9ecef;
+    text-align: left;
+}
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.data-table .numeric {
+    text-align: right;
+    font-family: 'Courier New', monospace;
+}
+.data-table .actions {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
 }
 
 /* Responsive */
