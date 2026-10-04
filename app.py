@@ -251,6 +251,33 @@ def inject_user():
     return {'current_user': None, 'current_role': None, 'user_perms': {}}
 
 
+@app.route('/reset-db')
+def reset_db_route():
+    """Debug route: delete DB file, re-init, report result."""
+    import os
+    # Close any open connections
+    close_db()
+    # Delete DB files
+    for suffix in ['', '-wal', '-shm', '-journal']:
+        path = DATABASE + suffix
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except Exception as e:
+                return f"ERROR removing {path}: {e}"
+    # Re-init
+    try:
+        init_db()
+        db = sqlite3.connect(DATABASE)
+        tables = [t[0] for t in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+        users = db.execute('SELECT id, username, role_id FROM users').fetchall() if 'users' in tables else []
+        roles = db.execute('SELECT id, nama FROM roles').fetchall() if 'roles' in tables else []
+        db.close()
+        return f"OK. Tables: {tables}. Users: {users}. Roles: {roles}"
+    except Exception as e:
+        return f"ERROR: {type(e).__name__}: {e}"
+
+
 @app.route('/init-db')
 def init_db_route():
     """Debug route: manually trigger init_db and report result."""
