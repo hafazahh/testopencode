@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Data Role - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Data Role</h2>
+{% if 'create' in user_perms.get('roles', []) %}
+<a href="{{ url_for('create_role') }}" class="btn btn-primary">+ Tambah Role</a>
+{% endif %}
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nama</th>
+            <th>Deskripsi</th>
+            <th>User Count</th>
+            {% if 'edit' in user_perms.get('roles', []) or 'delete' in user_perms.get('roles', []) %}
+            <th>Aksi</th>
+            {% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for role in roles %}
+        <tr>
+            <td>{{ role.id }}</td>
+            <td>{{ role.nama }}</td>
+            <td>{{ role.deskripsi or '-' }}</td>
+            <td>{{ role.user_count }}</td>
+            {% if 'edit' in user_perms.get('roles', []) or 'delete' in user_perms.get('roles', []) %}
+            <td>
+                {% if 'edit' in user_perms.get('roles', []) %}
+                <a href="{{ url_for('edit_role', id=role.id) }}" class="btn btn-small">Edit</a>
+                {% endif %}
+                {% if 'delete' in user_perms.get('roles', []) and role.user_count == 0 %}
+                <form method="POST" action="{{ url_for('delete_role', id=role.id) }}" style="display:inline;" onsubmit="return confirm('Hapus role ini?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-small btn-danger">Hapus</button>
+                </form>
+                {% endif %}
+            </td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Tambah Role - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Tambah Role</h2>
+<form method="POST" action="{{ url_for('create_role') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="form-group">
+        <label for="nama">Nama Role</label>
+        <input type="text" id="nama" name="nama" value="{{ nama or '' }}" required>
+    </div>
+    <div class="form-group">
+        <label for="deskripsi">Deskripsi</label>
+        <textarea id="deskripsi" name="deskripsi" rows="2">{{ deskripsi or '' }}</textarea>
+    </div>
+    <div class="form-group">
+        <label>Permissions</label>
+        <table class="table table-perms">
+            <thead>
+                <tr>
+                    <th>Menu</th>
+                    {% for action in actions %}
+                    <th>{{ action }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for menu in menus %}
+                <tr>
+                    <td><strong>{{ menu }}</strong></td>
+                    {% for action in actions %}
+                    <td>
+                        <input type="checkbox" name="perm_{{ menu }}" value="{{ action }}"
+                            {% if action in permissions.get(menu, []) %}checked{% endif %}>
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <button type="submit" class="btn btn-primary">Simpan</button>
+    <a href="{{ url_for('roles_index') }}" class="btn">Batal</a>
+</form>
+{% endblock %}

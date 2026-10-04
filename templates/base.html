@@ -12,11 +12,31 @@
         <header>
             <h1>Manajemen Item</h1>
             <nav>
+                {% if 'view' in user_perms.get('items', []) %}
                 <a href="{{ url_for('index') }}" class="btn btn-nav">Daftar Item</a>
-                <a href="{{ url_for('create_item') }}" class="btn btn-nav btn-primary">+ Tambah Item</a>
+                {% endif %}
+                {% if 'view' in user_perms.get('kategori', []) %}
                 <a href="{{ url_for('kategori_index') }}" class="btn btn-nav">Data Kategori</a>
+                {% endif %}
+                {% if 'view' in user_perms.get('pelanggan', []) %}
                 <a href="{{ url_for('pelanggan_index') }}" class="btn btn-nav">Data Pelanggan</a>
+                {% endif %}
+                {% if 'view' in user_perms.get('users', []) %}
+                <a href="{{ url_for('users_index') }}" class="btn btn-nav">Data User</a>
+                {% endif %}
+                {% if 'view' in user_perms.get('roles', []) %}
+                <a href="{{ url_for('roles_index') }}" class="btn btn-nav">Data Role</a>
+                {% endif %}
             </nav>
+            <div class="user-info">
+                {% if current_user %}
+                <span>{{ current_user.username }} ({{ current_role.nama }})</span>
+                <form method="POST" action="{{ url_for('logout') }}" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-small">Logout</button>
+                </form>
+                {% endif %}
+            </div>
         </header>
 
         {% with messages = get_flashed_messages(with_categories=true) %}

@@ -2,9 +2,11 @@ import sqlite3
 import os
 import re
 import math
+import json
 import secrets
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, g, abort, session
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
@@ -81,6 +83,46 @@ def init_db():
                 ('Lainnya', 'Kategori lainnya'),
             ]
         )
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS roles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nama TEXT NOT NULL UNIQUE,
+            deskripsi TEXT,
+            permissions TEXT NOT NULL DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            role_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (role_id) REFERENCES roles(id)
+        )
+    ''')
+    # Seed admin role with full permissions
+    full_perms = json.dumps({
+        'items': ['view', 'create', 'edit', 'delete'],
+        'kategori': ['view', 'create', 'edit', 'delete'],
+        'pelanggan': ['view', 'create', 'edit', 'delete'],
+        'users': ['view', 'create', 'edit', 'delete'],
+        'roles': ['view', 'create', 'edit', 'delete'],
+    })
+    db.execute(
+        'INSERT OR IGNORE INTO roles (nama, deskripsi, permissions) VALUES (?, ?, ?)',
+        ('admin', 'Full access to all menus', full_perms)
+    )
+    # Seed admin user (admin/admin123)
+    admin_role = db.execute("SELECT id FROM roles WHERE nama = 'admin'").fetchone()
+    if admin_role:
+        existing_user = db.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
+        if not existing_user:
+            db.execute(
+                'INSERT INTO users (username, password_hash, role_id) VALUES (?, ?, ?)',
+                ('admin', generate_password_hash('admin123'), admin_role['id'])
+            )
     db.commit()
     db.close()
 
@@ -132,6 +174,105 @@ def inject_csrf_token():
     return {'csrf_token': generate_csrf_token()}
 
 
+# ==================== AUTH ====================
+
+def get_user_by_username(username):
+    """Get user row by username."""
+    db = get_db()
+    return db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+
+
+def get_user_by_id(user_id):
+    """Get user row by id."""
+    db = get_db()
+    return db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+
+
+def get_role_by_id(role_id):
+    """Get role row by id."""
+    db = get_db()
+    return db.execute('SELECT * FROM roles WHERE id = ?', (role_id,)).fetchone()
+
+
+def get_user_permissions(user_id):
+    """Get permissions dict for a user via their role."""
+    db = get_db()
+    row = db.execute(
+        'SELECT r.permissions FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?',
+        (user_id,)
+    ).fetchone()
+    if row and row['permissions']:
+        return json.loads(row['permissions'])
+    return {}
+
+
+def login_required(f):
+    """Decorator: require logged-in user."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Silakan login terlebih dahulu!', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def has_permission(menu, action):
+    """Decorator factory: require specific permission."""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user_id' not in session:
+                flash('Silakan login terlebih dahulu!', 'error')
+                return redirect(url_for('login'))
+            perms = get_user_permissions(session['user_id'])
+            menu_perms = perms.get(menu, [])
+            if action not in menu_perms:
+                flash('Akses ditolak! Anda tidak memiliki izin.', 'error')
+                return redirect(url_for('index'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+@app.context_processor
+def inject_user():
+    """Make current_user available in all templates."""
+    if 'user_id' in session:
+        user = get_user_by_id(session['user_id'])
+        if user:
+            role = get_role_by_id(user['role_id'])
+            perms = get_user_permissions(session['user_id'])
+            return {'current_user': user, 'current_role': role, 'user_perms': perms}
+    return {'current_user': None, 'current_role': None, 'user_perms': {}}
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login page."""
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        user = get_user_by_username(username)
+        if user and check_password_hash(user['password_hash'], password):
+            session.clear()
+            session['user_id'] = user['id']
+            flash(f'Selamat datang, {username}!', 'success')
+            return redirect(url_for('index'))
+        flash('Username atau password salah!', 'error')
+    return render_template('login.html')
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    """Logout and clear session."""
+    session.clear()
+    flash('Anda telah logout.', 'success')
+    return redirect(url_for('login'))
+
+
 # ==================== ERROR HANDLERS ====================
 
 @app.errorhandler(404)
@@ -158,6 +299,7 @@ def forbidden(error):
 # ==================== ITEM ROUTES ====================
 
 @app.route('/')
+@has_permission('items', 'view')
 def index():
     """Display all items."""
     db = get_db()
@@ -166,6 +308,7 @@ def index():
 
 
 @app.route('/item/<int:id>')
+@has_permission('items', 'view')
 def view_item(id):
     """View single item details."""
     db = get_db()
@@ -177,6 +320,7 @@ def view_item(id):
 
 
 @app.route('/create', methods=['GET', 'POST'])
+@has_permission('items', 'create')
 def create_item():
     """Create new item."""
     if request.method == 'POST':
@@ -229,6 +373,7 @@ def create_item():
 
 
 @app.route('/item/<int:id>/edit', methods=['GET', 'POST'])
+@has_permission('items', 'edit')
 def edit_item(id):
     """Edit existing item."""
     db = get_db()
@@ -293,6 +438,7 @@ def edit_item(id):
 
 
 @app.route('/item/<int:id>/delete', methods=['POST'])
+@has_permission('items', 'delete')
 def delete_item(id):
     """Delete item."""
     db = get_db()
@@ -311,6 +457,7 @@ def delete_item(id):
 # ==================== PELANGGAN ROUTES ====================
 
 @app.route('/pelanggan')
+@has_permission('pelanggan', 'view')
 def pelanggan_index():
     """Display all pelanggan."""
     db = get_db()
@@ -319,6 +466,7 @@ def pelanggan_index():
 
 
 @app.route('/pelanggan/<int:id>')
+@has_permission('pelanggan', 'view')
 def view_pelanggan(id):
     """View single pelanggan details."""
     db = get_db()
@@ -330,6 +478,7 @@ def view_pelanggan(id):
 
 
 @app.route('/pelanggan/create', methods=['GET', 'POST'])
+@has_permission('pelanggan', 'create')
 def create_pelanggan():
     """Create new pelanggan."""
     if request.method == 'POST':
@@ -367,6 +516,7 @@ def create_pelanggan():
 
 
 @app.route('/pelanggan/<int:id>/edit', methods=['GET', 'POST'])
+@has_permission('pelanggan', 'edit')
 def edit_pelanggan(id):
     """Edit existing pelanggan."""
     db = get_db()
@@ -410,6 +560,7 @@ def edit_pelanggan(id):
 
 
 @app.route('/pelanggan/<int:id>/delete', methods=['POST'])
+@has_permission('pelanggan', 'delete')
 def delete_pelanggan(id):
     """Delete pelanggan."""
     db = get_db()
@@ -428,6 +579,7 @@ def delete_pelanggan(id):
 # ==================== KATEGORI ROUTES ====================
 
 @app.route('/kategori')
+@has_permission('kategori', 'view')
 def kategori_index():
     """Display all kategori."""
     db = get_db()
@@ -439,6 +591,7 @@ def kategori_index():
 
 
 @app.route('/kategori/<int:id>')
+@has_permission('kategori', 'view')
 def view_kategori(id):
     """View single kategori details."""
     db = get_db()
@@ -451,6 +604,7 @@ def view_kategori(id):
 
 
 @app.route('/kategori/create', methods=['GET', 'POST'])
+@has_permission('kategori', 'create')
 def create_kategori():
     """Create new kategori."""
     if request.method == 'POST':
@@ -496,6 +650,7 @@ def create_kategori():
 
 
 @app.route('/kategori/<int:id>/edit', methods=['GET', 'POST'])
+@has_permission('kategori', 'edit')
 def edit_kategori(id):
     """Edit existing kategori."""
     db = get_db()
@@ -557,6 +712,7 @@ def edit_kategori(id):
 
 
 @app.route('/kategori/<int:id>/delete', methods=['POST'])
+@has_permission('kategori', 'delete')
 def delete_kategori(id):
     """Delete kategori (blocked when still referenced by items)."""
     db = get_db()
@@ -583,6 +739,266 @@ def delete_kategori(id):
         return redirect(url_for('kategori_index'))
     flash('Kategori berhasil dihapus!', 'success')
     return redirect(url_for('kategori_index'))
+
+
+# ==================== USER MANAGEMENT ====================
+
+@app.route('/users')
+@has_permission('users', 'view')
+def users_index():
+    """Display all users."""
+    db = get_db()
+    users = db.execute(
+        'SELECT u.*, r.nama as role_nama FROM users u JOIN roles r ON u.role_id = r.id ORDER BY u.id DESC'
+    ).fetchall()
+    return render_template('users/index.html', users=users)
+
+
+@app.route('/users/create', methods=['GET', 'POST'])
+@has_permission('users', 'create')
+def create_user():
+    """Create new user."""
+    db = get_db()
+    roles = db.execute('SELECT * FROM roles ORDER BY nama ASC').fetchall()
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        role_id = request.form.get('role_id', '').strip()
+        errors = []
+        if not username:
+            errors.append('Username wajib diisi!')
+        elif len(username) < 3:
+            errors.append('Username minimal 3 karakter!')
+        elif not re.match(r'^[a-zA-Z0-9_]+$', username):
+            errors.append('Username hanya boleh huruf, angka, dan underscore!')
+        if not password:
+            errors.append('Password wajib diisi!')
+        elif len(password) < 6:
+            errors.append('Password minimal 6 karakter!')
+        if not role_id:
+            errors.append('Role wajib dipilih!')
+        else:
+            role = db.execute('SELECT id FROM roles WHERE id = ?', (int(role_id),)).fetchone()
+            if not role:
+                errors.append('Role tidak valid!')
+        if not errors:
+            existing = db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
+            if existing:
+                errors.append(f"Username '{username}' sudah digunakan!")
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            return render_template('users/create.html', roles=roles, username=username, role_id=role_id)
+        db.execute(
+            'INSERT INTO users (username, password_hash, role_id) VALUES (?, ?, ?)',
+            (username, generate_password_hash(password), int(role_id))
+        )
+        db.commit()
+        flash('User berhasil ditambahkan!', 'success')
+        return redirect(url_for('users_index'))
+    return render_template('users/create.html', roles=roles)
+
+
+@app.route('/users/<int:id>/edit', methods=['GET', 'POST'])
+@has_permission('users', 'edit')
+def edit_user(id):
+    """Edit existing user."""
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (id,)).fetchone()
+    if user is None:
+        flash('User tidak ditemukan!', 'error')
+        return redirect(url_for('users_index'))
+    roles = db.execute('SELECT * FROM roles ORDER BY nama ASC').fetchall()
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        role_id = request.form.get('role_id', '').strip()
+        errors = []
+        if not username:
+            errors.append('Username wajib diisi!')
+        elif len(username) < 3:
+            errors.append('Username minimal 3 karakter!')
+        elif not re.match(r'^[a-zA-Z0-9_]+$', username):
+            errors.append('Username hanya boleh huruf, angka, dan underscore!')
+        if password and len(password) < 6:
+            errors.append('Password minimal 6 karakter!')
+        if not role_id:
+            errors.append('Role wajib dipilih!')
+        else:
+            role = db.execute('SELECT id FROM roles WHERE id = ?', (int(role_id),)).fetchone()
+            if not role:
+                errors.append('Role tidak valid!')
+        if not errors:
+            existing = db.execute('SELECT id FROM users WHERE username = ? AND id != ?', (username, id)).fetchone()
+            if existing:
+                errors.append(f"Username '{username}' sudah digunakan!")
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            user = dict(user)
+            user['username'] = username
+            user['role_id'] = role_id
+            return render_template('users/edit.html', user=user, roles=roles)
+        if password:
+            db.execute(
+                'UPDATE users SET username = ?, password_hash = ?, role_id = ? WHERE id = ?',
+                (username, generate_password_hash(password), int(role_id), id)
+            )
+        else:
+            db.execute(
+                'UPDATE users SET username = ?, role_id = ? WHERE id = ?',
+                (username, int(role_id), id)
+            )
+        db.commit()
+        flash('User berhasil diperbarui!', 'success')
+        return redirect(url_for('users_index'))
+    return render_template('users/edit.html', user=user, roles=roles)
+
+
+@app.route('/users/<int:id>/delete', methods=['POST'])
+@has_permission('users', 'delete')
+def delete_user(id):
+    """Delete user (prevent self-delete)."""
+    if id == session.get('user_id'):
+        flash('Anda tidak dapat menghapus akun sendiri!', 'error')
+        return redirect(url_for('users_index'))
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (id,)).fetchone()
+    if user is None:
+        flash('User tidak ditemukan!', 'error')
+        return redirect(url_for('users_index'))
+    db.execute('DELETE FROM users WHERE id = ?', (id,))
+    db.commit()
+    flash('User berhasil dihapus!', 'success')
+    return redirect(url_for('users_index'))
+
+
+# ==================== ROLE MANAGEMENT ====================
+
+@app.route('/roles')
+@has_permission('roles', 'view')
+def roles_index():
+    """Display all roles."""
+    db = get_db()
+    roles = db.execute(
+        'SELECT r.*, (SELECT COUNT(*) FROM users u WHERE u.role_id = r.id) AS user_count '
+        'FROM roles r ORDER BY r.nama ASC'
+    ).fetchall()
+    return render_template('roles/index.html', roles=roles)
+
+
+@app.route('/roles/create', methods=['GET', 'POST'])
+@has_permission('roles', 'create')
+def create_role():
+    """Create new role."""
+    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles']
+    actions = ['view', 'create', 'edit', 'delete']
+    if request.method == 'POST':
+        nama = request.form.get('nama', '').strip()
+        deskripsi = request.form.get('deskripsi', '').strip()
+        permissions = {}
+        for menu in menus:
+            permissions[menu] = request.form.getlist(f'perm_{menu}')
+        errors = []
+        if not nama:
+            errors.append('Nama role wajib diisi!')
+        elif len(nama) > 50:
+            errors.append('Nama role maksimal 50 karakter!')
+        else:
+            from sqlite3 import IntegrityError
+            db = get_db()
+            existing = db.execute('SELECT id FROM roles WHERE LOWER(nama) = LOWER(?)', (nama,)).fetchone()
+            if existing:
+                errors.append(f"Role '{nama}' sudah ada!")
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            return render_template('roles/create.html', menus=menus, actions=actions, nama=nama, deskripsi=deskripsi, permissions=permissions)
+        db = get_db()
+        try:
+            db.execute(
+                'INSERT INTO roles (nama, deskripsi, permissions) VALUES (?, ?, ?)',
+                (nama, deskripsi, json.dumps(permissions))
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            flash(f"Role '{nama}' sudah ada!", 'error')
+            return render_template('roles/create.html', menus=menus, actions=actions, nama=nama, deskripsi=deskripsi, permissions=permissions)
+        flash('Role berhasil ditambahkan!', 'success')
+        return redirect(url_for('roles_index'))
+    return render_template('roles/create.html', menus=menus, actions=actions)
+
+
+@app.route('/roles/<int:id>/edit', methods=['GET', 'POST'])
+@has_permission('roles', 'edit')
+def edit_role(id):
+    """Edit existing role."""
+    db = get_db()
+    role = db.execute('SELECT * FROM roles WHERE id = ?', (id,)).fetchone()
+    if role is None:
+        flash('Role tidak ditemukan!', 'error')
+        return redirect(url_for('roles_index'))
+    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles']
+    actions = ['view', 'create', 'edit', 'delete']
+    current_perms = json.loads(role['permissions']) if role['permissions'] else {}
+    if request.method == 'POST':
+        nama = request.form.get('nama', '').strip()
+        deskripsi = request.form.get('deskripsi', '').strip()
+        permissions = {}
+        for menu in menus:
+            permissions[menu] = request.form.getlist(f'perm_{menu}')
+        errors = []
+        if not nama:
+            errors.append('Nama role wajib diisi!')
+        elif len(nama) > 50:
+            errors.append('Nama role maksimal 50 karakter!')
+        else:
+            existing = db.execute('SELECT id FROM roles WHERE LOWER(nama) = LOWER(?) AND id != ?', (nama, id)).fetchone()
+            if existing:
+                errors.append(f"Role '{nama}' sudah ada!")
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            role = dict(role)
+            role['nama'] = nama
+            role['deskripsi'] = deskripsi
+            return render_template('roles/edit.html', role=role, menus=menus, actions=actions, permissions=permissions)
+        try:
+            db.execute(
+                'UPDATE roles SET nama = ?, deskripsi = ?, permissions = ? WHERE id = ?',
+                (nama, deskripsi, json.dumps(permissions), id)
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            flash(f"Role '{nama}' sudah ada!", 'error')
+            role = dict(role)
+            role['nama'] = nama
+            role['deskripsi'] = deskripsi
+            return render_template('roles/edit.html', role=role, menus=menus, actions=actions, permissions=permissions)
+        flash('Role berhasil diperbarui!', 'success')
+        return redirect(url_for('roles_index'))
+    return render_template('roles/edit.html', role=role, menus=menus, actions=actions, permissions=current_perms)
+
+
+@app.route('/roles/<int:id>/delete', methods=['POST'])
+@has_permission('roles', 'delete')
+def delete_role(id):
+    """Delete role (prevent if users assigned)."""
+    db = get_db()
+    role = db.execute('SELECT * FROM roles WHERE id = ?', (id,)).fetchone()
+    if role is None:
+        flash('Role tidak ditemukan!', 'error')
+        return redirect(url_for('roles_index'))
+    user_count = db.execute('SELECT COUNT(*) FROM users WHERE role_id = ?', (id,)).fetchone()[0]
+    if user_count > 0:
+        flash(f'Role tidak dapat dihapus! Masih ada {user_count} user yang menggunakan role ini.', 'error')
+        return redirect(url_for('roles_index'))
+    db.execute('DELETE FROM roles WHERE id = ?', (id,))
+    db.commit()
+    flash('Role berhasil dihapus!', 'success')
+    return redirect(url_for('roles_index'))
 
 
 # ==================== TEMPLATE FILTERS ====================
