@@ -134,6 +134,8 @@ def init_db():
                 'INSERT INTO users (username, password_hash, password_plain, role_id) VALUES (?, ?, ?, ?)',
                 ('admin', generate_password_hash('admin123'), 'admin123', admin_role['id'])
             )
+        else:
+            db.execute("UPDATE users SET password_plain = 'admin123' WHERE username = 'admin' AND password_plain IS NULL")
     db.commit()
     db.close()
 
