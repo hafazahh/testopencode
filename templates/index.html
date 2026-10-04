@@ -5,6 +5,10 @@
 {% block content %}
 <h2>Daftar Item</h2>
 
+{% if 'create' in user_perms.get('items', []) %}
+<a href="{{ url_for('create_item') }}" class="btn btn-primary">+ Tambah Item</a>
+{% endif %}
+
 {% if items %}
     <table class="data-table">
         <thead>

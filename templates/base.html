@@ -15,6 +15,9 @@
                 {% if 'view' in user_perms.get('items', []) %}
                 <a href="{{ url_for('index') }}" class="btn btn-nav">Daftar Item</a>
                 {% endif %}
+                {% if 'create' in user_perms.get('items', []) %}
+                <a href="{{ url_for('create_item') }}" class="btn btn-nav btn-primary">+ Tambah Item</a>
+                {% endif %}
                 {% if 'view' in user_perms.get('kategori', []) %}
                 <a href="{{ url_for('kategori_index') }}" class="btn btn-nav">Data Kategori</a>
                 {% endif %}
