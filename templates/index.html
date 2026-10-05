@@ -3,11 +3,12 @@
 {% block title %}Daftar Item - CRUD Item{% endblock %}
 
 {% block content %}
-<h2>Daftar Item</h2>
-
-{% if 'create' in user_perms.get('items', []) %}
-<a href="{{ url_for('create_item') }}" class="btn btn-primary">+ Tambah Item</a>
-{% endif %}
+<div class="list-header">
+    <h2>Daftar Item</h2>
+    {% if 'create' in user_perms.get('items', []) %}
+    <a href="{{ url_for('create_item') }}" class="btn btn-primary">+ Tambah Item</a>
+    {% endif %}
+</div>
 
 {% if items %}
     <table class="data-table">

@@ -3,7 +3,12 @@
 {% block title %}Daftar Kategori - CRUD Item{% endblock %}
 
 {% block content %}
-<h2>Daftar Kategori</h2>
+<div class="list-header">
+    <h2>Daftar Kategori</h2>
+    {% if 'create' in user_perms.get('kategori', []) %}
+    <a href="{{ url_for('create_kategori') }}" class="btn btn-primary">+ Tambah Kategori</a>
+    {% endif %}
+</div>
 
 {% if kategori %}
     <table class="data-table">
@@ -44,8 +49,4 @@
         <p>Belum ada kategori. <a href="{{ url_for('create_kategori') }}">Tambah kategori pertama</a></p>
     </div>
 {% endif %}
-
-<div class="form-actions" style="margin-top: 20px;">
-    <a href="{{ url_for('create_kategori') }}" class="btn btn-primary">+ Tambah Kategori</a>
-</div>
 {% endblock %}

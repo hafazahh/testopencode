@@ -3,10 +3,12 @@
 {% block title %}Data User - CRUD Item{% endblock %}
 
 {% block content %}
-<h2>Data User</h2>
-{% if 'create' in user_perms.get('users', []) %}
-<a href="{{ url_for('create_user') }}" class="btn btn-primary">+ Tambah User</a>
-{% endif %}
+<div class="list-header">
+    <h2>Data User</h2>
+    {% if 'create' in user_perms.get('users', []) %}
+    <a href="{{ url_for('create_user') }}" class="btn btn-primary">+ Tambah User</a>
+    {% endif %}
+</div>
 
 <table class="data-table">
     <thead>

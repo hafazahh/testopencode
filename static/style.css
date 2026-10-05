@@ -151,6 +151,27 @@ h2 {
     padding-bottom: 10px;
 }
 
+/* List page header: title left, primary action right.
+   Keeps the "add" button consistently ABOVE the table on every list page. */
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.list-header h2 {
+    margin-bottom: 0;
+    flex: 1 1 auto;
+}
+
+.list-header .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
 /* Flash Messages */
 .flash-messages {
     margin-bottom: 20px;

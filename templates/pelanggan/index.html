@@ -3,7 +3,12 @@
 {% block title %}Daftar Pelanggan - CRUD Item{% endblock %}
 
 {% block content %}
-<h2>Daftar Pelanggan</h2>
+<div class="list-header">
+    <h2>Daftar Pelanggan</h2>
+    {% if 'create' in user_perms.get('pelanggan', []) %}
+    <a href="{{ url_for('create_pelanggan') }}" class="btn btn-primary">+ Tambah Pelanggan</a>
+    {% endif %}
+</div>
 
 {% if pelanggan %}
     <table class="data-table">
@@ -44,8 +49,4 @@
         <p>Belum ada pelanggan. <a href="{{ url_for('create_pelanggan') }}">Tambah pelanggan pertama</a></p>
     </div>
 {% endif %}
-
-<div class="form-actions" style="margin-top: 20px;">
-    <a href="{{ url_for('create_pelanggan') }}" class="btn btn-primary">+ Tambah Pelanggan</a>
-</div>
 {% endblock %}
