@@ -60,12 +60,25 @@ SECURITY_HEADERS = {
     'Cross-Origin-Resource-Policy': 'same-origin',
 }
 
+# HTTP Strict Transport Security.
+# Only sent over HTTPS so a plain-HTTP response can never pin the browser to
+# HTTPS for a host that does not serve it. 1 year + includeSubDomains, matching
+# the policy already applied to the apex domain.
+#
+# NOTE: intentionally WITHOUT `preload`. Adding preload requires submitting the
+# domain to hstspreload.org, and removal from that list takes months — a
+# deliberate opt-in decision, not something to set implicitly.
+HSTS_VALUE = 'max-age=31536000; includeSubDomains'
+
 
 @app.after_request
 def apply_security_headers(response):
     """Attach security headers to every response."""
     for header, value in SECURITY_HEADERS.items():
         response.headers.setdefault(header, value)
+    # HSTS only over HTTPS (request.is_secure is correct thanks to ProxyFix).
+    if request.is_secure:
+        response.headers.setdefault('Strict-Transport-Security', HSTS_VALUE)
     return response
 
 

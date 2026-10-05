@@ -62,12 +62,25 @@ with app.test_client() as c:
 
 print()
 print('=' * 68)
-print('3. SECURE COOKIE OVER SIMULATED HTTPS')
+print('3. SECURE COOKIE + HSTS OVER SIMULATED HTTPS')
 print('=' * 68)
 with app.test_client() as c:
     r = c.get('/login', base_url='https://crud.choirulhaq.com')
     raw = r.headers.get('Set-Cookie', '')
     check('Secure attribute emitted over HTTPS', 'Secure' in raw, raw[:80])
+    hsts = r.headers.get('Strict-Transport-Security')
+    check('HSTS present over HTTPS', bool(hsts), str(hsts))
+    check('HSTS has max-age >= 1 year', 'max-age=31536000' in (hsts or ''), str(hsts))
+    check('HSTS has includeSubDomains', 'includeSubDomains' in (hsts or ''))
+
+print()
+print('=' * 68)
+print('3b. HSTS ABSENT OVER PLAIN HTTP (must not pin non-TLS hosts)')
+print('=' * 68)
+with app.test_client() as c:
+    r = c.get('/login', base_url='http://crud.choirulhaq.com')
+    check('HSTS NOT sent over http://', r.headers.get('Strict-Transport-Security') is None,
+          str(r.headers.get('Strict-Transport-Security')))
 
 print()
 print('=' * 68)
