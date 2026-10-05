@@ -4,13 +4,70 @@ import re
 import math
 import json
 import secrets
+import time
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, g, abort, session
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database.db')
+
+# ==================== SECURITY CONFIG ====================
+# Cloudflare terminates TLS and forwards plain HTTP to the Render origin, so
+# Flask would otherwise see the request as http://. ProxyFix restores the
+# original scheme/host from X-Forwarded-* (Cloudflare sets these), which keeps
+# url_for(_external=True), redirects and request.is_secure correct.
+# x_for=1, x_proto=1, x_host=1 == exactly one trusted proxy hop (Cloudflare).
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+# Session cookie hardening. Secure=True is safe here because visitors always
+# reach the app over HTTPS (Cloudflare terminates it); the Secure attribute
+# only instructs the browser to withhold the cookie on plain HTTP requests.
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=True,
+    PERMANENT_SESSION_LIFETIME=3600,  # 1 hour
+)
+
+# Content-Security-Policy.
+# NOTE: this app embeds no external resources and uses NO inline JS, so
+# 'unsafe-inline' is not needed for script-src. Inline <style> blocks and
+# style="" attributes ARE used by the templates, hence 'unsafe-inline' in
+# style-src only. img-src allows data: for the inline SVG favicon.
+CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; "
+    "font-src 'self'; "
+    "connect-src 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "object-src 'none'"
+)
+
+SECURITY_HEADERS = {
+    'Content-Security-Policy': CSP,
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=()',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+}
+
+
+@app.after_request
+def apply_security_headers(response):
+    """Attach security headers to every response."""
+    for header, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(header, value)
+    return response
+
 
 # DEPRECATED: kept for backward compat; source of truth is the kategori table
 CATEGORIES = ['Elektronik', 'Makanan', 'Pakaian', 'Lainnya']
@@ -189,6 +246,71 @@ def inject_csrf_token():
 
 # ==================== AUTH ====================
 
+# ---- Login rate limiting (in-memory, per (IP, username)) ----
+# In-process only: state resets on deploy and is not shared across gunicorn
+# workers. Render runs WEB_CONCURRENCY=1 for this app, so a single worker sees
+# every request. Good enough to blunt brute force on a demo; a real deployment
+# should use a shared store (Redis) instead.
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_WINDOW_SECONDS = 900      # 15 minutes
+LOGIN_LOCKOUT_SECONDS = 900     # 15 minutes
+_login_attempts = {}            # key -> {'count': int, 'first': ts, 'locked_until': ts}
+
+
+def _client_ip():
+    """Client IP, honouring Cloudflare's header via ProxyFix."""
+    return request.remote_addr or 'unknown'
+
+
+def _login_key(username):
+    return f"{_client_ip()}|{username.lower()}"
+
+
+def login_locked_for(username):
+    """Return seconds remaining if locked out, else 0."""
+    entry = _login_attempts.get(_login_key(username))
+    if not entry:
+        return 0
+    remaining = entry.get('locked_until', 0) - time.time()
+    return int(remaining) if remaining > 0 else 0
+
+
+def record_login_failure(username):
+    """Count a failed attempt; lock the key when the threshold is reached."""
+    key = _login_key(username)
+    now = time.time()
+    entry = _login_attempts.get(key)
+    if not entry or now - entry['first'] > LOGIN_WINDOW_SECONDS:
+        entry = {'count': 0, 'first': now, 'locked_until': 0}
+    entry['count'] += 1
+    if entry['count'] >= LOGIN_MAX_ATTEMPTS:
+        entry['locked_until'] = now + LOGIN_LOCKOUT_SECONDS
+        entry['count'] = 0
+        entry['first'] = now
+    _login_attempts[key] = entry
+
+
+def clear_login_failures(username):
+    """Reset the counter after a successful login."""
+    _login_attempts.pop(_login_key(username), None)
+
+
+def get_non_admin_users():
+    """Non-admin users shown on the login page.
+
+    DEMO FEATURE — intentionally exposes plaintext passwords so visitors can
+    try the app without asking the owner for credentials. This is a deliberate
+    trade-off for a public demo and must NOT be carried into a real deployment.
+    """
+    db = get_db()
+    return db.execute(
+        'SELECT u.username, u.password_plain, r.nama as role_nama '
+        'FROM users u JOIN roles r ON u.role_id = r.id '
+        'WHERE r.nama != ? ORDER BY u.username ASC',
+        ('admin',)
+    ).fetchall()
+
+
 def get_user_by_username(username):
     """Get user row by username."""
     db = get_db()
@@ -260,48 +382,6 @@ def inject_user():
     return {'current_user': None, 'current_role': None, 'user_perms': {}}
 
 
-@app.route('/reset-db')
-def reset_db_route():
-    """Debug route: delete DB file, re-init, report result."""
-    import os
-    # Close any open connections
-    close_db()
-    # Delete DB files
-    for suffix in ['', '-wal', '-shm', '-journal']:
-        path = DATABASE + suffix
-        if os.path.exists(path):
-            try:
-                os.remove(path)
-            except Exception as e:
-                return f"ERROR removing {path}: {e}"
-    # Re-init
-    try:
-        init_db()
-        db = sqlite3.connect(DATABASE)
-        tables = [t[0] for t in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
-        users = db.execute('SELECT id, username, role_id FROM users').fetchall() if 'users' in tables else []
-        roles = db.execute('SELECT id, nama FROM roles').fetchall() if 'roles' in tables else []
-        db.close()
-        return f"OK. Tables: {tables}. Users: {users}. Roles: {roles}"
-    except Exception as e:
-        return f"ERROR: {type(e).__name__}: {e}"
-
-
-@app.route('/init-db')
-def init_db_route():
-    """Debug route: manually trigger init_db and report result."""
-    try:
-        init_db()
-        db = sqlite3.connect(DATABASE)
-        tables = [t[0] for t in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
-        users = db.execute('SELECT id, username, role_id FROM users').fetchall() if 'users' in tables else []
-        roles = db.execute('SELECT id, nama FROM roles').fetchall() if 'roles' in tables else []
-        db.close()
-        return f"OK. Tables: {tables}. Users: {users}. Roles: {roles}"
-    except Exception as e:
-        return f"ERROR: {type(e).__name__}: {e}"
-
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page."""
@@ -310,20 +390,29 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+
+        # Brute-force guard: refuse while the (IP, username) key is locked.
+        locked = login_locked_for(username)
+        if locked:
+            flash(f'Terlalu banyak percobaan gagal. Coba lagi dalam {locked // 60 + 1} menit.', 'error')
+            return render_template('login.html', non_admin_users=get_non_admin_users())
+
         user = get_user_by_username(username)
         if user and check_password_hash(user['password_hash'], password):
+            clear_login_failures(username)
             session.clear()
             session['user_id'] = user['id']
+            session.permanent = True
             flash(f'Selamat datang, {username}!', 'success')
             return redirect(url_for('index'))
-        flash('Username atau password salah!', 'error')
-    # Fetch non-admin users for login info display
-    db = get_db()
-    non_admin_users = db.execute(
-        'SELECT u.username, u.password_plain, r.nama as role_nama FROM users u JOIN roles r ON u.role_id = r.id WHERE r.nama != ? ORDER BY u.username ASC',
-        ('admin',)
-    ).fetchall()
-    return render_template('login.html', non_admin_users=non_admin_users)
+
+        record_login_failure(username)
+        left = LOGIN_MAX_ATTEMPTS - _login_attempts.get(_login_key(username), {}).get('count', 0)
+        if 0 < left <= 2:
+            flash(f'Username atau password salah! Sisa {left} percobaan sebelum akun terkunci sementara.', 'error')
+        else:
+            flash('Username atau password salah!', 'error')
+    return render_template('login.html', non_admin_users=get_non_admin_users())
 
 
 @app.route('/logout', methods=['POST'])
@@ -352,9 +441,16 @@ def internal_error(error):
 
 @app.errorhandler(403)
 def forbidden(error):
-    """Handle 403 errors."""
-    flash('Akses ditolak!', 'error')
-    return redirect(url_for('index'))
+    """Handle 403 errors.
+
+    Returns a real 403 status (not a redirect) so that failed CSRF checks and
+    denied authorizations are reported honestly to the client and to security
+    scanners, instead of being masked as a 302.
+    """
+    return render_template('error.html',
+                           code=403,
+                           title='Akses Ditolak',
+                           message='Anda tidak memiliki izin untuk mengakses halaman ini.'), 403
 
 
 # ==================== ITEM ROUTES ====================

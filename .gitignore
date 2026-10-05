@@ -5,3 +5,6 @@ database.db
 *.db-journal
 .DS_Store
 .env
+
+# Local debug scripts (not for production)
+debug_test*.py

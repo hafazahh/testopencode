@@ -514,3 +514,36 @@ footer {
     transform: scale(1.15);
     transition: transform 0.15s ease;
 }
+
+/* Error Page */
+.error-page {
+    max-width: 560px;
+    margin: 60px auto;
+    background: white;
+    padding: 48px 32px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    text-align: center;
+}
+
+.error-code {
+    font-size: 5rem;
+    font-weight: 800;
+    line-height: 1;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 16px;
+}
+
+.error-page h1 {
+    font-size: 1.5rem;
+    color: #333;
+    margin-bottom: 12px;
+}
+
+.error-page p {
+    color: #6c757d;
+    margin-bottom: 28px;
+}
