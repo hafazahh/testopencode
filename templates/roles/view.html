@@ -6,11 +6,11 @@
 <h2>Detail Role</h2>
 <table class="data-table">
     <tbody>
-        <tr><th>ID</th><td>{{ role.id }}</td></tr>
-        <tr><th>Nama</th><td>{{ role.nama }}</td></tr>
-        <tr><th>Deskripsi</th><td>{{ role.deskripsi or '-' }}</td></tr>
-        <tr><th>User Count</th><td>{{ user_count }}</td></tr>
-        <tr><th>Dibuat</th><td>{{ role.created_at }}</td></tr>
+        <tr><th scope="col">ID</th><td>{{ role.id }}</td></tr>
+        <tr><th scope="col">Nama</th><td>{{ role.nama }}</td></tr>
+        <tr><th scope="col">Deskripsi</th><td>{{ role.deskripsi or '-' }}</td></tr>
+        <tr><th scope="col">User Count</th><td>{{ user_count }}</td></tr>
+        <tr><th scope="col">Dibuat</th><td>{{ role.created_at }}</td></tr>
     </tbody>
 </table>
 
@@ -18,11 +18,11 @@
 <table class="data-table">
     <thead>
         <tr>
-            <th>Menu</th>
-            <th>View</th>
-            <th>Create</th>
-            <th>Edit</th>
-            <th>Delete</th>
+            <th scope="col">Menu</th>
+            <th scope="col">View</th>
+            <th scope="col">Create</th>
+            <th scope="col">Edit</th>
+            <th scope="col">Delete</th>
         </tr>
     </thead>
     <tbody>

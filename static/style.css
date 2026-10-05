@@ -386,24 +386,26 @@ footer {
     margin-top: 10px;
 }
 .data-table thead th {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background-color: #E0F2FE;
+    color: #0C4A6E;
     font-weight: 600;
     padding: 14px 18px;
-    border-bottom: none;
+    border-bottom: 1px solid #BAE6FD;
     text-align: left;
+    letter-spacing: 0.01em;
 }
 .data-table tbody tr:nth-child(even) {
-    background-color: #f8f9fa;
+    background-color: #F8FAFC;
 }
 .data-table tbody tr:hover {
-    background-color: #e9ecef;
+    background-color: #EFF6FF;
     transition: background-color 0.2s ease;
 }
 .data-table tbody td {
     padding: 12px 18px;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid #E2E8F0;
     text-align: left;
+    color: #1E293B;
 }
 .data-table tbody tr:last-child td {
     border-bottom: none;

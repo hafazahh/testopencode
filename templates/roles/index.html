@@ -11,12 +11,12 @@
 <table class="data-table">
     <thead>
         <tr>
-            <th>ID</th>
-            <th>Nama</th>
-            <th>Deskripsi</th>
-            <th>User Count</th>
+            <th scope="col">ID</th>
+            <th scope="col">Nama</th>
+            <th scope="col">Deskripsi</th>
+            <th scope="col">User Count</th>
             {% if 'edit' in user_perms.get('roles', []) or 'delete' in user_perms.get('roles', []) %}
-            <th>Aksi</th>
+            <th scope="col">Aksi</th>
             {% endif %}
         </tr>
     </thead>
