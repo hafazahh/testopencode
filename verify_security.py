@@ -1,6 +1,6 @@
 """Security hardening verification — headers, cookie flags, rate limiting, CSRF.
 
-Run:  /home/choirulhaq/venvProject/bin/python3 verify_security.py
+Run:  /home/choirulhaq/venvProject/venv/bin/python3 verify_security.py
 """
 import os
 import re
