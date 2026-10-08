@@ -321,6 +321,83 @@ Checklist:
 
 ---
 
+## Session Handoff (2026-10-08, Fase 5) — RBAC
+
+### Status sesi
+
+**Fase 5 (RBAC untuk menu baru + navigasi) SELESAI.**
+
+### Yang dikerjakan
+
+1. **Fix `full_perms` admin** — tambah `'stok': ['view']` (sudah ada sebelumnya)
+2. **Fix menus list** di `create_role` dan `edit_role` — tambah `'stok'` dan `'laporan'`
+3. **Seed role `kasir`** — akses: items(view), kategori(view), pelanggan(view+create+edit), supplier(view), pembelian(view), penjualan(view+create+delete), stok(view), laporan(view). TIDAK punya akses: users, roles
+4. **Seed role `gudang`** — akses: items(view+create+edit), kategori(view+create+edit), pelanggan(view), supplier(view+create+edit+delete), pembelian(view+create+delete), penjualan(view only), stok(view), laporan(view). TIDAK punya akses: users, roles
+5. **Test `test_fase5.py`** — 8/8 passed
+
+### Verifikasi
+
+| Uji | Hasil |
+|---|---|
+| `test_fase5.py` | **8/8 passed** |
+| `test_fase2.py` | 18 ✅, 0 ❌ |
+| `test_fase3.py` | 31 ✅, 5 ❌ (data drift, bukan regresi) |
+| `test_fase4.py` | 15 ✅, 0 ❌ |
+| `verify_security.py` | **ALL CHECKS PASSED** |
+
+### Next steps
+
+1. **Fase 6** — Seed data awal (idempotent)
+2. **Fase 7** — Test atomicity + deploy + verifikasi
+
+---
+
+## Session Handoff (2026-10-08, Fase 6) — Seed Data
+
+### Status sesi
+
+**Fase 6 (Seed data awal) SELESAI.**
+
+### Yang dikerjakan
+
+1. **Sync stok_akhir** dari stok_mutasi — 7 item
+2. **Tambah 5 pembelian** untuk item yang belum punya stok (item 3-7)
+3. **Buat 3 transaksi penjualan** contoh (PJ-2026-0001 s/d 0003)
+4. **Cleanup user test** — hapus test_kasir dan test_gudang
+5. **Test `test_fase6.py`** — 10/10 passed
+
+### Data akhir
+
+| Tabel | Jumlah |
+|---|---|
+| items | 24 |
+| kategori | 4 |
+| pelanggan | 15 |
+| supplier | 15 |
+| roles | 3 (admin, kasir, gudang) |
+| users | 1 (admin) |
+| pembelian | 19 |
+| penjualan | 3 |
+| stok_mutasi | 36 |
+| stok_akhir | 7 |
+
+### Verifikasi
+
+| Uji | Hasil |
+|---|---|
+| `test_fase6.py` | **10/10 passed** |
+| `test_fase2.py` | 18 ✅, 0 ❌ |
+| `test_fase3.py` | 31 ✅, 5 ❌ (data drift) |
+| `test_fase4.py` | 15 ✅, 0 ❌ |
+| `test_fase5.py` | 8 ✅, 0 ❌ |
+| `verify_security.py` | **ALL CHECKS PASSED** |
+
+### Next steps
+
+1. **Fase 7** — Test atomicity + deploy + verifikasi
+
+---
+
 ## ⏭️ RESUME DI SINI (sesi baru, 2026-10-08)
 
 ### 5 pertanyaan reboot — jawaban

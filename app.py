@@ -223,6 +223,36 @@ def init_db():
             )
         else:
             db.execute("UPDATE users SET password_plain = 'admin123' WHERE username = 'admin' AND password_plain IS NULL")
+    # Seed role kasir
+    kasir_perms = json.dumps({
+        'items': ['view'],
+        'kategori': ['view'],
+        'pelanggan': ['view', 'create', 'edit'],
+        'supplier': ['view'],
+        'pembelian': ['view'],
+        'penjualan': ['view', 'create', 'delete'],
+        'stok': ['view'],
+        'laporan': ['view'],
+    })
+    db.execute(
+        'INSERT OR IGNORE INTO roles (nama, deskripsi, permissions) VALUES (?, ?, ?)',
+        ('kasir', 'Akses kasir: penjualan + laporan', kasir_perms)
+    )
+    # Seed role gudang
+    gudang_perms = json.dumps({
+        'items': ['view', 'create', 'edit'],
+        'kategori': ['view', 'create', 'edit'],
+        'pelanggan': ['view'],
+        'supplier': ['view', 'create', 'edit', 'delete'],
+        'pembelian': ['view', 'create', 'delete'],
+        'penjualan': ['view'],
+        'stok': ['view'],
+        'laporan': ['view'],
+    })
+    db.execute(
+        'INSERT OR IGNORE INTO roles (nama, deskripsi, permissions) VALUES (?, ?, ?)',
+        ('gudang', 'Akses gudang: supplier + pembelian + stok', gudang_perms)
+    )
     # ==================== FASE 2: SUPPLIER + PEMBELIAN ====================
     db.execute('''
         CREATE TABLE IF NOT EXISTS supplier (
@@ -1224,7 +1254,7 @@ def view_role(id):
 @has_permission('roles', 'create')
 def create_role():
     """Create new role."""
-    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles', 'supplier', 'pembelian', 'penjualan']
+    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles', 'supplier', 'pembelian', 'penjualan', 'stok', 'laporan']
     actions = ['view', 'create', 'edit', 'delete']
     db = get_db()
     if request.method == 'POST':
@@ -1271,7 +1301,7 @@ def edit_role(id):
     if role is None:
         flash('Role tidak ditemukan!', 'error')
         return redirect(url_for('roles_index'))
-    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles', 'supplier', 'pembelian', 'penjualan']
+    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles', 'supplier', 'pembelian', 'penjualan', 'stok', 'laporan']
     actions = ['view', 'create', 'edit', 'delete']
     current_perms = json.loads(role['permissions']) if role['permissions'] else {}
     if request.method == 'POST':

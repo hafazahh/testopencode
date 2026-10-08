@@ -41,8 +41,8 @@ bisa dipercaya pegang data uang.
 | 3b | **Fix CSP: tombol "+ Tambah Item" + konfirmasi hapus** | ✅ complete | 2026-10-07 |
 | 4 | Kartu stok + laporan | ✅ complete | 2026-10-08 |
 | 4b | **Login page: label keterangan fungsi aplikasi** | ✅ complete | 2026-10-08 |
-| 5 | RBAC untuk menu baru + navigasi | pending | kecil |
-| 6 | Seed data awal | pending | kecil |
+| 5 | RBAC untuk menu baru + navigasi | ✅ complete | 2026-10-08 |
+| 6 | Seed data awal | ✅ complete | 2026-10-08 |
 | 7 | Test atomicity + deploy + verifikasi | pending | sedang |
 
 **Status sesi ini (2026-10-08):** Fase 4 + 4b selesai. 15/15 test passed, 0 regression.
