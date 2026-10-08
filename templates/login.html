@@ -24,6 +24,41 @@
         {% endwith %}
 
         <main>
+            <div class="login-info-card">
+                <h2>Sistem Manajemen Inventory &amp; Transaksi</h2>
+                <p class="description">Kelola stok barang, pembelian, penjualan, dan laporan dalam satu sistem terpadu.</p>
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <span class="icon">📦</span>
+                        <div>
+                            <div class="feature-title">Master Data</div>
+                            <div class="feature-desc">Item, Kategori, Pelanggan, Supplier</div>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <span class="icon">🛒</span>
+                        <div>
+                            <div class="feature-title">Transaksi</div>
+                            <div class="feature-desc">Pembelian &amp; Penjualan dengan validasi stok</div>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <span class="icon">📊</span>
+                        <div>
+                            <div class="feature-title">Laporan</div>
+                            <div class="feature-desc">Kartu Stok, Laporan Penjualan &amp; Stok</div>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <span class="icon">🔐</span>
+                        <div>
+                            <div class="feature-title">Multi-User</div>
+                            <div class="feature-desc">Role-Based Access Control (RBAC)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <form method="POST" action="{{ url_for('login') }}" class="form-login">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="form-group">

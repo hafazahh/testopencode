@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Kartu Stok - Sistem Inventory{% endblock %}
+
+{% block content %}
+<div class="list-header">
+    <h2>Kartu Stok</h2>
+    <form method="GET" action="{{ url_for('stok_kartu') }}" class="inline-form">
+        <div class="form-group" style="margin-bottom:0;">
+            <label for="item_id" style="display:inline; margin-right:8px;">Pilih Item</label>
+            <select name="item_id" id="item_id" style="width:auto; display:inline-block;">
+                {% for i in items %}
+                <option value="{{ i.id }}" {% if i.id == selected_item.id %}selected{% endif %}>{{ i.nama }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm" style="margin-left:8px;">Tampilkan</button>
+        </div>
+    </form>
+</div>
+
+<div class="detail-card">
+    <div class="detail-row">
+        <span class="detail-label">Item</span>
+        <span class="detail-value">{{ selected_item.nama }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Stok Akhir</span>
+        <span class="detail-value">{{ selected_item.stok_akhir }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">HPP Rata-rata</span>
+        <span class="detail-value">Rp {{ "{:,.0f}".format(selected_item.harga_pokok) }}</span>
+    </div>
+</div>
+
+{% if mutasi %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th scope="col">Tanggal</th>
+            <th scope="col">No. Referensi</th>
+            <th scope="col">Jenis</th>
+            <th scope="col">Qty</th>
+            <th scope="col">Harga</th>
+            <th scope="col">Saldo Berjalan</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in mutasi %}
+        <tr>
+            <td>{{ m.tanggal }}</td>
+            <td>{{ m.nomor_referensi }}</td>
+            <td>
+                {% if m.jenis_mutasi == 'IN' %}
+                <span class="badge badge-success">Masuk</span>
+                {% else %}
+                <span class="badge badge-danger">Keluar</span>
+                {% endif %}
+            </td>
+            <td class="numeric">{{ m.qty }}</td>
+            <td class="numeric">Rp {{ "{:,.0f}".format(m.harga) }}</td>
+            <td class="numeric">{{ m.saldo_berjalan }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>Belum ada mutasi stok untuk item ini.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='kartu-stok.js') }}"></script>
+{% endblock %}

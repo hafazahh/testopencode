@@ -27,6 +27,22 @@
                 {% if 'view' in user_perms.get('roles', []) %}
                 <a href="{{ url_for('roles_index') }}" class="btn btn-nav">Data Role</a>
                 {% endif %}
+                {% if 'view' in user_perms.get('supplier', []) %}
+                <a href="{{ url_for('supplier_index') }}" class="btn btn-nav">Data Supplier</a>
+                {% endif %}
+                {% if 'view' in user_perms.get('pembelian', []) %}
+                <a href="{{ url_for('pembelian_index') }}" class="btn btn-nav">Pembelian</a>
+                {% endif %}
+                {% if 'view' in user_perms.get('penjualan', []) %}
+                <a href="{{ url_for('penjualan_index') }}" class="btn btn-nav">Penjualan</a>
+                {% endif %}
+                {% if 'view' in user_perms.get('stok', []) %}
+                <a href="{{ url_for('stok_kartu') }}" class="btn btn-nav">Kartu Stok</a>
+                {% endif %}
+                {% if 'view' in user_perms.get('laporan', []) %}
+                <a href="{{ url_for('laporan_penjualan') }}" class="btn btn-nav">Laporan Penjualan</a>
+                <a href="{{ url_for('laporan_stok') }}" class="btn btn-nav">Laporan Stok</a>
+                {% endif %}
             </nav>
             <div class="user-info">
                 {% if current_user %}
@@ -57,5 +73,8 @@
             <p>CRUD Item &copy; 2024 - Flask + SQLite</p>
         </footer>
     </div>
+
+    <script src="{{ url_for('static', filename='confirm.js') }}"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

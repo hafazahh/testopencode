@@ -5,6 +5,7 @@ import math
 import json
 import secrets
 import time
+from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, g, abort, session
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -33,10 +34,16 @@ app.config.update(
 )
 
 # Content-Security-Policy.
-# NOTE: this app embeds no external resources and uses NO inline JS, so
-# 'unsafe-inline' is not needed for script-src. Inline <style> blocks and
-# style="" attributes ARE used by the templates, hence 'unsafe-inline' in
-# style-src only. img-src allows data: for the inline SVG favicon.
+# NOTE: this app embeds no external resources and uses NO inline JS -- all
+# scripts live in static/*.js and every handler uses addEventListener. Server
+# data for the multi-row forms travels in a non-executable
+# <script type="application/json"> block. That is what keeps 'unsafe-inline'
+# out of script-src. Inline <style> blocks and style="" attributes ARE used by
+# the templates, hence 'unsafe-inline' in style-src only. img-src allows data:
+# for the inline SVG favicon.
+#
+# Do NOT add an inline <script> or an onclick=/onchange=/oninput= attribute to a
+# template: script-src 'self' blocks both silently, with no server-side error.
 CSP = (
     "default-src 'self'; "
     "script-src 'self'; "
@@ -190,10 +197,20 @@ def init_db():
         'pelanggan': ['view', 'create', 'edit', 'delete'],
         'users': ['view', 'create', 'edit', 'delete'],
         'roles': ['view', 'create', 'edit', 'delete'],
+        'supplier': ['view', 'create', 'edit', 'delete'],
+        'pembelian': ['view', 'create', 'delete'],
+        'penjualan': ['view', 'create', 'delete'],
+        'stok': ['view'],
+        'laporan': ['view'],
     })
     db.execute(
         'INSERT OR IGNORE INTO roles (nama, deskripsi, permissions) VALUES (?, ?, ?)',
         ('admin', 'Full access to all menus', full_perms)
+    )
+    # Update existing admin role with new permissions (for existing databases)
+    db.execute(
+        "UPDATE roles SET permissions = ? WHERE nama = 'admin'",
+        (full_perms,)
     )
     # Seed admin user (admin/admin123)
     admin_role = db.execute("SELECT id FROM roles WHERE nama = 'admin'").fetchone()
@@ -206,6 +223,123 @@ def init_db():
             )
         else:
             db.execute("UPDATE users SET password_plain = 'admin123' WHERE username = 'admin' AND password_plain IS NULL")
+    # ==================== FASE 2: SUPPLIER + PEMBELIAN ====================
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS supplier (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nama TEXT NOT NULL,
+            kontak TEXT,
+            alamat TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_supplier_nama ON supplier(nama)')
+
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS pembelian (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supplier_id INTEGER NOT NULL,
+            nomor_transaksi TEXT NOT NULL UNIQUE,
+            tanggal DATE NOT NULL DEFAULT CURRENT_DATE,
+            catatan TEXT,
+            total REAL NOT NULL DEFAULT 0,
+            created_by INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (supplier_id) REFERENCES supplier(id) ON DELETE RESTRICT,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_pembelian_tanggal ON pembelian(tanggal)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_pembelian_supplier ON pembelian(supplier_id)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_pembelian_nomor ON pembelian(nomor_transaksi)')
+
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS pembelian_detail (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pembelian_id INTEGER NOT NULL,
+            item_id INTEGER NOT NULL,
+            qty REAL NOT NULL CHECK(qty > 0),
+            harga_beli REAL NOT NULL CHECK(harga_beli >= 0),
+            subtotal REAL NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pembelian_id) REFERENCES pembelian(id) ON DELETE CASCADE,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE RESTRICT
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_pembelian_detail_pembelian ON pembelian_detail(pembelian_id)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_pembelian_detail_item ON pembelian_detail(item_id)')
+
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS stok_mutasi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER NOT NULL,
+            jenis_mutasi TEXT NOT NULL CHECK(jenis_mutasi IN ('IN', 'OUT')),
+            qty REAL NOT NULL,
+            harga REAL NOT NULL,
+            saldo_berjalan REAL NOT NULL,
+            referensi_tipe TEXT NOT NULL CHECK(referensi_tipe IN ('pembelian', 'penjualan')),
+            referensi_id INTEGER NOT NULL,
+            nomor_referensi TEXT NOT NULL,
+            tanggal DATE NOT NULL DEFAULT CURRENT_DATE,
+            created_by INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE RESTRICT,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_stok_mutasi_item ON stok_mutasi(item_id)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_stok_mutasi_tanggal ON stok_mutasi(tanggal)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_stok_mutasi_referensi ON stok_mutasi(referensi_tipe, referensi_id)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_stok_mutasi_nomor ON stok_mutasi(nomor_referensi)')
+
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS stok_akhir (
+            item_id INTEGER PRIMARY KEY,
+            qty_akhir REAL NOT NULL DEFAULT 0,
+            harga_pokok_rata REAL NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_stok_akhir_item ON stok_akhir(item_id)')
+
+    # ==================== FASE 3: PENJUALAN TABLES ====================
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS penjualan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pelanggan_id INTEGER NOT NULL,
+            nomor_transaksi TEXT NOT NULL UNIQUE,
+            tanggal DATE NOT NULL DEFAULT CURRENT_DATE,
+            catatan TEXT,
+            total REAL NOT NULL DEFAULT 0,
+            created_by INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pelanggan_id) REFERENCES pelanggan(id) ON DELETE RESTRICT,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_penjualan_tanggal ON penjualan(tanggal)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_penjualan_pelanggan ON penjualan(pelanggan_id)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_penjualan_nomor ON penjualan(nomor_transaksi)')
+
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS penjualan_detail (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            penjualan_id INTEGER NOT NULL,
+            item_id INTEGER NOT NULL,
+            qty REAL NOT NULL CHECK(qty > 0),
+            harga_jual REAL NOT NULL CHECK(harga_jual >= 0),
+            harga_pokok REAL NOT NULL DEFAULT 0,
+            subtotal REAL NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (penjualan_id) REFERENCES penjualan(id) ON DELETE CASCADE,
+            FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE RESTRICT
+        )
+    ''')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_penjualan_detail_penjualan ON penjualan_detail(penjualan_id)')
+    db.execute('CREATE INDEX IF NOT EXISTS idx_penjualan_detail_item ON penjualan_detail(item_id)')
+
     db.commit()
     db.close()
 
@@ -1090,7 +1224,7 @@ def view_role(id):
 @has_permission('roles', 'create')
 def create_role():
     """Create new role."""
-    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles']
+    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles', 'supplier', 'pembelian', 'penjualan']
     actions = ['view', 'create', 'edit', 'delete']
     db = get_db()
     if request.method == 'POST':
@@ -1137,7 +1271,7 @@ def edit_role(id):
     if role is None:
         flash('Role tidak ditemukan!', 'error')
         return redirect(url_for('roles_index'))
-    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles']
+    menus = ['items', 'kategori', 'pelanggan', 'users', 'roles', 'supplier', 'pembelian', 'penjualan']
     actions = ['view', 'create', 'edit', 'delete']
     current_perms = json.loads(role['permissions']) if role['permissions'] else {}
     if request.method == 'POST':
@@ -1197,6 +1331,874 @@ def delete_role(id):
     db.commit()
     flash('Role berhasil dihapus!', 'success')
     return redirect(url_for('roles_index'))
+
+
+# ==================== FASE 2: HELPER FUNCTIONS ====================
+
+def get_suppliers():
+    """Return all suppliers ordered by nama."""
+    db = get_db()
+    return db.execute('SELECT * FROM supplier ORDER BY nama ASC').fetchall()
+
+
+def get_items():
+    """Return all items ordered by nama."""
+    db = get_db()
+    return db.execute('SELECT * FROM items ORDER BY nama ASC').fetchall()
+
+
+def hitung_saldo_berjalan(item_id, jenis_mutasi, qty):
+    """Hitung saldo berjalan untuk kartu stok."""
+    db = get_db()
+    saldo_terakhir = db.execute(
+        "SELECT saldo_berjalan FROM stok_mutasi "
+        "WHERE item_id = ? ORDER BY id DESC LIMIT 1",
+        (item_id,)
+    ).fetchone()
+    
+    saldo_sebelumnya = saldo_terakhir['saldo_berjalan'] if saldo_terakhir else 0
+    
+    if jenis_mutasi == 'IN':
+        saldo_berjalan = saldo_sebelumnya + qty
+    else:
+        saldo_berjalan = saldo_sebelumnya - qty
+    
+    return saldo_berjalan
+
+
+def hitung_hpp_moving_average(item_id, qty_beli, harga_beli):
+    """Hitung HPP moving average setelah pembelian."""
+    db = get_db()
+    stok_akhir = db.execute(
+        "SELECT qty_akhir, harga_pokok_rata FROM stok_akhir WHERE item_id = ?",
+        (item_id,)
+    ).fetchone()
+    
+    if stok_akhir is None:
+        qty_akhir_lama = 0
+        hpp_lama = 0
+    else:
+        qty_akhir_lama = stok_akhir['qty_akhir']
+        hpp_lama = stok_akhir['harga_pokok_rata']
+    
+    if qty_akhir_lama + qty_beli == 0:
+        hpp_baru = 0
+    else:
+        hpp_baru = ((qty_akhir_lama * hpp_lama) + (qty_beli * harga_beli)) / (qty_akhir_lama + qty_beli)
+    
+    return hpp_baru
+
+
+def update_stok_akhir_setelah_pembelian(item_id, qty_beli, harga_beli):
+    """Update stok_akhir setelah pembelian."""
+    db = get_db()
+    hpp_baru = hitung_hpp_moving_average(item_id, qty_beli, harga_beli)
+    
+    stok_akhir = db.execute(
+        "SELECT qty_akhir FROM stok_akhir WHERE item_id = ?",
+        (item_id,)
+    ).fetchone()
+    
+    qty_akhir_lama = stok_akhir['qty_akhir'] if stok_akhir else 0
+    qty_akhir_baru = qty_akhir_lama + qty_beli
+    
+    db.execute('''
+        INSERT INTO stok_akhir (item_id, qty_akhir, harga_pokok_rata, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(item_id) DO UPDATE SET
+            qty_akhir = excluded.qty_akhir,
+            harga_pokok_rata = excluded.harga_pokok_rata,
+            updated_at = CURRENT_TIMESTAMP
+    ''', (item_id, qty_akhir_baru, hpp_baru))
+
+
+def generate_nomor_transaksi(prefix):
+    """Generate nomor transaksi otomatis PB-YYYY-NNNN atau PJ-YYYY-NNNN."""
+    from datetime import datetime
+    
+    tahun = datetime.now().year
+    pattern = f"{prefix}-{tahun}-%"
+    
+    db = get_db()
+    
+    # Tabel dan kolom berdasarkan prefix
+    if prefix == 'PB':
+        tabel = 'pembelian'
+    else:  # PJ
+        tabel = 'penjualan'
+    
+    terakhir = db.execute(
+        f"SELECT nomor_transaksi FROM {tabel} WHERE nomor_transaksi LIKE ? ORDER BY nomor_transaksi DESC LIMIT 1",
+        (pattern,)
+    ).fetchone()
+    
+    if terakhir:
+        nomor_urut = int(terakhir['nomor_transaksi'].split('-')[-1]) + 1
+    else:
+        nomor_urut = 1
+    
+    return f"{prefix}-{tahun}-{nomor_urut:04d}"
+
+
+# ==================== FASE 2: SUPPLIER ROUTES ====================
+
+@app.route('/supplier')
+@has_permission('supplier', 'view')
+def supplier_index():
+    """Display all suppliers."""
+    db = get_db()
+    suppliers = db.execute('SELECT * FROM supplier ORDER BY id DESC').fetchall()
+    return render_template('supplier/index.html', suppliers=suppliers)
+
+
+@app.route('/supplier/create', methods=['GET', 'POST'])
+@has_permission('supplier', 'create')
+def create_supplier():
+    """Create new supplier."""
+    if request.method == 'POST':
+        nama = request.form.get('nama', '').strip()
+        kontak = request.form.get('kontak', '').strip()
+        alamat = request.form.get('alamat', '').strip()
+
+        errors = []
+        if not nama:
+            errors.append('Nama supplier wajib diisi!')
+        elif len(nama) > 100:
+            errors.append('Nama supplier maksimal 100 karakter!')
+        if kontak and len(kontak) > 100:
+            errors.append('Kontak maksimal 100 karakter!')
+        if alamat and len(alamat) > 500:
+            errors.append('Alamat maksimal 500 karakter!')
+
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            return render_template('supplier/create.html', nama=nama, kontak=kontak, alamat=alamat)
+
+        db = get_db()
+        db.execute(
+            'INSERT INTO supplier (nama, kontak, alamat) VALUES (?, ?, ?)',
+            (nama, kontak, alamat)
+        )
+        db.commit()
+        flash('Supplier berhasil ditambahkan!', 'success')
+        return redirect(url_for('supplier_index'))
+
+    return render_template('supplier/create.html')
+
+
+@app.route('/supplier/<int:id>')
+@has_permission('supplier', 'view')
+def view_supplier(id):
+    """View single supplier details."""
+    db = get_db()
+    supplier = db.execute('SELECT * FROM supplier WHERE id = ?', (id,)).fetchone()
+    if supplier is None:
+        flash('Supplier tidak ditemukan!', 'error')
+        return redirect(url_for('supplier_index'))
+    return render_template('supplier/view.html', supplier=supplier)
+
+
+@app.route('/supplier/<int:id>/edit', methods=['GET', 'POST'])
+@has_permission('supplier', 'edit')
+def edit_supplier(id):
+    """Edit existing supplier."""
+    db = get_db()
+    supplier = db.execute('SELECT * FROM supplier WHERE id = ?', (id,)).fetchone()
+
+    if supplier is None:
+        flash('Supplier tidak ditemukan!', 'error')
+        return redirect(url_for('supplier_index'))
+
+    if request.method == 'POST':
+        nama = request.form.get('nama', '').strip()
+        kontak = request.form.get('kontak', '').strip()
+        alamat = request.form.get('alamat', '').strip()
+
+        errors = []
+        if not nama:
+            errors.append('Nama supplier wajib diisi!')
+        elif len(nama) > 100:
+            errors.append('Nama supplier maksimal 100 karakter!')
+        if kontak and len(kontak) > 100:
+            errors.append('Kontak maksimal 100 karakter!')
+        if alamat and len(alamat) > 500:
+            errors.append('Alamat maksimal 500 karakter!')
+
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            supplier = dict(supplier)
+            supplier['nama'] = nama
+            supplier['kontak'] = kontak
+            supplier['alamat'] = alamat
+            return render_template('supplier/edit.html', supplier=supplier)
+
+        db.execute(
+            'UPDATE supplier SET nama = ?, kontak = ?, alamat = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            (nama, kontak, alamat, id)
+        )
+        db.commit()
+        flash('Supplier berhasil diperbarui!', 'success')
+        return redirect(url_for('supplier_index'))
+
+    return render_template('supplier/edit.html', supplier=supplier)
+
+
+@app.route('/supplier/<int:id>/delete', methods=['POST'])
+@has_permission('supplier', 'delete')
+def delete_supplier(id):
+    """Delete supplier."""
+    db = get_db()
+    supplier = db.execute('SELECT * FROM supplier WHERE id = ?', (id,)).fetchone()
+
+    if supplier is None:
+        flash('Supplier tidak ditemukan!', 'error')
+        return redirect(url_for('supplier_index'))
+
+    # Check if supplier is used in pembelian
+    pembelian_count = db.execute('SELECT COUNT(*) FROM pembelian WHERE supplier_id = ?', (id,)).fetchone()[0]
+    if pembelian_count > 0:
+        flash(f'Supplier tidak dapat dihapus! Masih ada {pembelian_count} pembelian yang menggunakan supplier ini.', 'error')
+        return redirect(url_for('supplier_index'))
+
+    db.execute('DELETE FROM supplier WHERE id = ?', (id,))
+    db.commit()
+    flash('Supplier berhasil dihapus!', 'success')
+    return redirect(url_for('supplier_index'))
+
+
+# ==================== FASE 2: PEMBELIAN ROUTES ====================
+
+@app.route('/pembelian')
+@has_permission('pembelian', 'view')
+def pembelian_index():
+    """Display all pembelian."""
+    db = get_db()
+    pembelian = db.execute('''
+        SELECT 
+            p.*,
+            s.nama as supplier_nama,
+            u.username as created_by_username
+        FROM pembelian p
+        JOIN supplier s ON p.supplier_id = s.id
+        JOIN users u ON p.created_by = u.id
+        ORDER BY p.created_at DESC
+    ''').fetchall()
+    return render_template('pembelian/index.html', pembelian=pembelian)
+
+
+@app.route('/pembelian/create', methods=['GET', 'POST'])
+@has_permission('pembelian', 'create')
+def create_pembelian():
+    """Create new pembelian (multi-item, atomic)."""
+    if request.method == 'POST':
+        supplier_id = request.form.get('supplier_id', '').strip()
+        tanggal = request.form.get('tanggal', '').strip()
+        catatan = request.form.get('catatan', '').strip()
+        
+        item_ids = request.form.getlist('item_id[]')
+        qtys = request.form.getlist('qty[]')
+        hargas = request.form.getlist('harga_beli[]')
+        
+        errors = []
+        if not supplier_id:
+            errors.append('Supplier wajib dipilih!')
+        if not tanggal:
+            errors.append('Tanggal wajib diisi!')
+        if not item_ids or len(item_ids) == 0:
+            errors.append('Minimal 1 item harus ditambahkan!')
+        
+        valid_items = []
+        for i in range(len(item_ids)):
+            item_id = item_ids[i]
+            qty_str = qtys[i] if i < len(qtys) else ''
+            harga_str = hargas[i] if i < len(hargas) else ''
+            
+            if not item_id:
+                continue
+            
+            try:
+                qty = float(qty_str)
+                harga = float(harga_str)
+                if qty <= 0:
+                    errors.append(f'Item {i+1}: Qty harus lebih dari 0!')
+                    continue
+                if harga < 0:
+                    errors.append(f'Item {i+1}: Harga beli tidak boleh negatif!')
+                    continue
+                valid_items.append({
+                    'item_id': int(item_id),
+                    'qty': qty,
+                    'harga_beli': harga,
+                    'subtotal': qty * harga
+                })
+            except ValueError:
+                errors.append(f'Item {i+1}: Qty dan harga harus berupa angka!')
+        
+        if len(valid_items) == 0 and len(errors) == 0:
+            errors.append('Minimal 1 item harus ditambahkan!')
+        
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            return render_template('pembelian/create.html',
+                                   suppliers=get_suppliers(),
+                                   items=get_items(),
+                                   supplier_id=supplier_id,
+                                   tanggal=tanggal,
+                                   catatan=catatan)
+        
+        total = sum(item['subtotal'] for item in valid_items)
+        
+        db = get_db()
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            
+            nomor = generate_nomor_transaksi('PB')
+            
+            cursor = db.execute('''
+                INSERT INTO pembelian (supplier_id, nomor_transaksi, tanggal, catatan, total, created_by)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (int(supplier_id), nomor, tanggal, catatan, total, session['user_id']))
+            
+            pembelian_id = cursor.lastrowid
+            
+            for item in valid_items:
+                db.execute('''
+                    INSERT INTO pembelian_detail (pembelian_id, item_id, qty, harga_beli, subtotal)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (pembelian_id, item['item_id'], item['qty'], item['harga_beli'], item['subtotal']))
+                
+                update_stok_akhir_setelah_pembelian(item['item_id'], item['qty'], item['harga_beli'])
+                
+                saldo_berjalan = hitung_saldo_berjalan(item['item_id'], 'IN', item['qty'])
+                db.execute('''
+                    INSERT INTO stok_mutasi (item_id, jenis_mutasi, qty, harga, saldo_berjalan,
+                                             referensi_tipe, referensi_id, nomor_referensi, tanggal, created_by)
+                    VALUES (?, 'IN', ?, ?, ?, 'pembelian', ?, ?, ?, ?)
+                ''', (item['item_id'], item['qty'], item['harga_beli'], saldo_berjalan,
+                      pembelian_id, nomor, tanggal, session['user_id']))
+            
+            db.commit()
+            flash(f'Pembelian {nomor} berhasil dibuat!', 'success')
+            return redirect(url_for('view_pembelian', id=pembelian_id))
+            
+        except Exception as e:
+            db.rollback()
+            flash(f'Gagal membuat pembelian: {str(e)}', 'error')
+            return render_template('pembelian/create.html',
+                                   suppliers=get_suppliers(),
+                                   items=get_items(),
+                                   supplier_id=supplier_id,
+                                   tanggal=tanggal,
+                                   catatan=catatan)
+    
+    return render_template('pembelian/create.html',
+                           suppliers=get_suppliers(),
+                           items=get_items(),
+                           today=datetime.now().strftime('%Y-%m-%d'))
+
+
+@app.route('/pembelian/<int:id>')
+@has_permission('pembelian', 'view')
+def view_pembelian(id):
+    """View single pembelian details."""
+    db = get_db()
+    pembelian = db.execute('''
+        SELECT 
+            p.*,
+            s.nama as supplier_nama,
+            u.username as created_by_username
+        FROM pembelian p
+        JOIN supplier s ON p.supplier_id = s.id
+        JOIN users u ON p.created_by = u.id
+        WHERE p.id = ?
+    ''', (id,)).fetchone()
+    
+    if pembelian is None:
+        flash('Pembelian tidak ditemukan!', 'error')
+        return redirect(url_for('pembelian_index'))
+    
+    detail = db.execute('''
+        SELECT 
+            pd.*,
+            i.nama as item_nama
+        FROM pembelian_detail pd
+        JOIN items i ON pd.item_id = i.id
+        WHERE pd.pembelian_id = ?
+    ''', (id,)).fetchall()
+    
+    return render_template('pembelian/view.html', pembelian=pembelian, detail=detail)
+
+
+@app.route('/pembelian/<int:id>/delete', methods=['POST'])
+@has_permission('pembelian', 'delete')
+def delete_pembelian(id):
+    """Delete pembelian dan rollback stok."""
+    db = get_db()
+    pembelian = db.execute('SELECT * FROM pembelian WHERE id = ?', (id,)).fetchone()
+    
+    if pembelian is None:
+        flash('Pembelian tidak ditemukan!', 'error')
+        return redirect(url_for('pembelian_index'))
+    
+    try:
+        db.execute("BEGIN IMMEDIATE")
+        
+        mutasis = db.execute(
+            "SELECT * FROM stok_mutasi WHERE referensi_tipe = 'pembelian' AND referensi_id = ?",
+            (id,)
+        ).fetchall()
+        
+        for mutasi in mutasis:
+            item_id = mutasi['item_id']
+            qty = mutasi['qty']
+            
+            saldo_terakhir = db.execute(
+                "SELECT saldo_berjalan FROM stok_mutasi "
+                "WHERE item_id = ? AND id != ? ORDER BY id DESC LIMIT 1",
+                (item_id, mutasi['id'])
+            ).fetchone()
+            
+            saldo_sebelumnya = saldo_terakhir['saldo_berjalan'] if saldo_terakhir else 0
+            saldo_baru = saldo_sebelumnya - qty
+            
+            stok_akhir = db.execute(
+                "SELECT qty_akhir, harga_pokok_rata FROM stok_akhir WHERE item_id = ?",
+                (item_id,)
+            ).fetchone()
+            
+            if stok_akhir:
+                qty_akhir_baru = stok_akhir['qty_akhir'] - qty
+                if qty_akhir_baru < 0:
+                    qty_akhir_baru = 0
+                
+                db.execute('''
+                    UPDATE stok_akhir SET qty_akhir = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE item_id = ?
+                ''', (qty_akhir_baru, item_id))
+            
+            db.execute("DELETE FROM stok_mutasi WHERE id = ?", (mutasi['id'],))
+        
+        db.execute("DELETE FROM pembelian_detail WHERE pembelian_id = ?", (id,))
+        db.execute("DELETE FROM pembelian WHERE id = ?", (id,))
+        
+        db.commit()
+        flash('Pembelian berhasil dihapus!', 'success')
+        
+    except Exception as e:
+        db.rollback()
+        flash(f'Gagal menghapus pembelian: {str(e)}', 'error')
+    
+    return redirect(url_for('pembelian_index'))
+
+
+# ==================== FASE 3: HELPER FUNCTIONS ====================
+
+def get_pelanggans():
+    """Return all pelanggans ordered by nama."""
+    db = get_db()
+    return db.execute('SELECT * FROM pelanggan ORDER BY nama ASC').fetchall()
+
+
+def get_items_with_stok():
+    """Return all items with current stock from stok_akhir."""
+    db = get_db()
+    return db.execute('''
+        SELECT 
+            i.*,
+            COALESCE(sa.qty_akhir, 0) as stok_akhir,
+            COALESCE(sa.harga_pokok_rata, 0) as harga_pokok
+        FROM items i
+        LEFT JOIN stok_akhir sa ON i.id = sa.item_id
+        ORDER BY i.nama ASC
+    ''').fetchall()
+
+
+def validasi_stok_cukup(item_id, qty_diminta):
+    """
+    Cek apakah stok cukup untuk penjualan.
+    
+    Returns:
+        (bool, str): (cukup, pesan_error)
+    """
+    db = get_db()
+    
+    stok_akhir = db.execute(
+        "SELECT qty_akhir FROM stok_akhir WHERE item_id = ?",
+        (item_id,)
+    ).fetchone()
+    
+    saldo_akhir = stok_akhir['qty_akhir'] if stok_akhir else 0
+    
+    if saldo_akhir < qty_diminta:
+        return False, f"Stok tidak cukup. Tersedia: {saldo_akhir}, Diminta: {qty_diminta}"
+    
+    return True, ""
+
+
+def update_stok_akhir_setelah_penjualan(item_id, qty_jual):
+    """
+    Update stok_akhir setelah penjualan (kurangi stok).
+    HPP tidak berubah saat penjualan.
+    """
+    db = get_db()
+    
+    stok_akhir = db.execute(
+        "SELECT qty_akhir, harga_pokok_rata FROM stok_akhir WHERE item_id = ?",
+        (item_id,)
+    ).fetchone()
+    
+    if stok_akhir:
+        qty_akhir_baru = stok_akhir['qty_akhir'] - qty_jual
+        if qty_akhir_baru < 0:
+            qty_akhir_baru = 0  # Safety: jangan negatif
+        
+        db.execute('''
+            UPDATE stok_akhir SET qty_akhir = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE item_id = ?
+        ''', (qty_akhir_baru, item_id))
+
+
+# ==================== FASE 3: PENJUALAN ROUTES ====================
+
+@app.route('/penjualan')
+@has_permission('penjualan', 'view')
+def penjualan_index():
+    """Display all penjualan."""
+    db = get_db()
+    penjualan = db.execute('''
+        SELECT 
+            p.*,
+            pl.nama as pelanggan_nama,
+            u.username as created_by_username
+        FROM penjualan p
+        JOIN pelanggan pl ON p.pelanggan_id = pl.id
+        JOIN users u ON p.created_by = u.id
+        ORDER BY p.created_at DESC
+    ''').fetchall()
+    return render_template('penjualan/index.html', penjualan=penjualan)
+
+
+@app.route('/penjualan/create', methods=['GET', 'POST'])
+@has_permission('penjualan', 'create')
+def create_penjualan():
+    """Create new penjualan (multi-item, atomic)."""
+    if request.method == 'POST':
+        pelanggan_id = request.form.get('pelanggan_id', '').strip()
+        tanggal = request.form.get('tanggal', '').strip()
+        catatan = request.form.get('catatan', '').strip()
+        
+        item_ids = request.form.getlist('item_id[]')
+        qtys = request.form.getlist('qty[]')
+        hargas = request.form.getlist('harga_jual[]')
+        
+        errors = []
+        if not pelanggan_id:
+            errors.append('Pelanggan wajib dipilih!')
+        if not tanggal:
+            errors.append('Tanggal wajib diisi!')
+        if not item_ids or len(item_ids) == 0:
+            errors.append('Minimal 1 item harus ditambahkan!')
+        
+        valid_items = []
+        for i in range(len(item_ids)):
+            item_id = item_ids[i]
+            qty_str = qtys[i] if i < len(qtys) else ''
+            harga_str = hargas[i] if i < len(hargas) else ''
+            
+            if not item_id:
+                continue
+            
+            try:
+                qty = float(qty_str)
+                harga = float(harga_str)
+                if qty <= 0:
+                    errors.append(f'Item {i+1}: Qty harus lebih dari 0!')
+                    continue
+                if harga < 0:
+                    errors.append(f'Item {i+1}: Harga jual tidak boleh negatif!')
+                    continue
+                
+                # Validasi stok cukup
+                stok_cukup, pesan_stok = validasi_stok_cukup(int(item_id), qty)
+                if not stok_cukup:
+                    errors.append(f'Item {i+1}: {pesan_stok}')
+                    continue
+                
+                valid_items.append({
+                    'item_id': int(item_id),
+                    'qty': qty,
+                    'harga_jual': harga,
+                    'subtotal': qty * harga
+                })
+            except ValueError:
+                errors.append(f'Item {i+1}: Qty dan harga harus berupa angka!')
+        
+        if len(valid_items) == 0 and len(errors) == 0:
+            errors.append('Minimal 1 item harus ditambahkan!')
+        
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            return render_template('penjualan/create.html',
+                                   pelanggans=get_pelanggans(),
+                                   items=get_items_with_stok(),
+                                   pelanggan_id=pelanggan_id,
+                                   tanggal=tanggal,
+                                   catatan=catatan)
+        
+        total = sum(item['subtotal'] for item in valid_items)
+        
+        db = get_db()
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            
+            nomor = generate_nomor_transaksi('PJ')
+            
+            cursor = db.execute('''
+                INSERT INTO penjualan (pelanggan_id, nomor_transaksi, tanggal, catatan, total, created_by)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (int(pelanggan_id), nomor, tanggal, catatan, total, session['user_id']))
+            
+            penjualan_id = cursor.lastrowid
+            
+            for item in valid_items:
+                # Ambil HPP snapshot dari stok_akhir
+                stok_akhir = db.execute(
+                    "SELECT harga_pokok_rata FROM stok_akhir WHERE item_id = ?",
+                    (item['item_id'],)
+                ).fetchone()
+                harga_pokok = stok_akhir['harga_pokok_rata'] if stok_akhir else 0
+                
+                # Insert detail
+                db.execute('''
+                    INSERT INTO penjualan_detail (penjualan_id, item_id, qty, harga_jual, harga_pokok, subtotal)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (penjualan_id, item['item_id'], item['qty'], item['harga_jual'], harga_pokok, item['subtotal']))
+                
+                # Update stok_akhir (kurangi stok)
+                update_stok_akhir_setelah_penjualan(item['item_id'], item['qty'])
+                
+                # Insert stok_mutasi
+                saldo_berjalan = hitung_saldo_berjalan(item['item_id'], 'OUT', item['qty'])
+                db.execute('''
+                    INSERT INTO stok_mutasi (item_id, jenis_mutasi, qty, harga, saldo_berjalan,
+                                             referensi_tipe, referensi_id, nomor_referensi, tanggal, created_by)
+                    VALUES (?, 'OUT', ?, ?, ?, 'penjualan', ?, ?, ?, ?)
+                ''', (item['item_id'], item['qty'], harga_pokok, saldo_berjalan,
+                      penjualan_id, nomor, tanggal, session['user_id']))
+            
+            db.commit()
+            flash(f'Penjualan {nomor} berhasil dibuat!', 'success')
+            return redirect(url_for('view_penjualan', id=penjualan_id))
+            
+        except Exception as e:
+            db.rollback()
+            flash(f'Gagal membuat penjualan: {str(e)}', 'error')
+            return render_template('penjualan/create.html',
+                                   pelanggans=get_pelanggans(),
+                                   items=get_items_with_stok(),
+                                   pelanggan_id=pelanggan_id,
+                                   tanggal=tanggal,
+                                   catatan=catatan)
+    
+    return render_template('penjualan/create.html',
+                           pelanggans=get_pelanggans(),
+                           items=get_items_with_stok(),
+                           today=datetime.now().strftime('%Y-%m-%d'))
+
+
+@app.route('/penjualan/<int:id>')
+@has_permission('penjualan', 'view')
+def view_penjualan(id):
+    """View single penjualan details."""
+    db = get_db()
+    penjualan = db.execute('''
+        SELECT 
+            p.*,
+            pl.nama as pelanggan_nama,
+            u.username as created_by_username
+        FROM penjualan p
+        JOIN pelanggan pl ON p.pelanggan_id = pl.id
+        JOIN users u ON p.created_by = u.id
+        WHERE p.id = ?
+    ''', (id,)).fetchone()
+    
+    if penjualan is None:
+        flash('Penjualan tidak ditemukan!', 'error')
+        return redirect(url_for('penjualan_index'))
+    
+    detail = db.execute('''
+        SELECT 
+            pd.*,
+            i.nama as item_nama
+        FROM penjualan_detail pd
+        JOIN items i ON pd.item_id = i.id
+        WHERE pd.penjualan_id = ?
+    ''', (id,)).fetchall()
+    
+    return render_template('penjualan/view.html', penjualan=penjualan, detail=detail)
+
+
+@app.route('/penjualan/<int:id>/delete', methods=['POST'])
+@has_permission('penjualan', 'delete')
+def delete_penjualan(id):
+    """Delete penjualan dan rollback stok."""
+    db = get_db()
+    penjualan = db.execute('SELECT * FROM penjualan WHERE id = ?', (id,)).fetchone()
+    
+    if penjualan is None:
+        flash('Penjualan tidak ditemukan!', 'error')
+        return redirect(url_for('penjualan_index'))
+    
+    try:
+        db.execute("BEGIN IMMEDIATE")
+        
+        mutasis = db.execute(
+            "SELECT * FROM stok_mutasi WHERE referensi_tipe = 'penjualan' AND referensi_id = ?",
+            (id,)
+        ).fetchall()
+        
+        for mutasi in mutasis:
+            item_id = mutasi['item_id']
+            qty = mutasi['qty']
+            
+            stok_akhir = db.execute(
+                "SELECT qty_akhir FROM stok_akhir WHERE item_id = ?",
+                (item_id,)
+            ).fetchone()
+            
+            if stok_akhir:
+                qty_akhir_baru = stok_akhir['qty_akhir'] + qty
+                
+                db.execute('''
+                    UPDATE stok_akhir SET qty_akhir = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE item_id = ?
+                ''', (qty_akhir_baru, item_id))
+            
+            db.execute("DELETE FROM stok_mutasi WHERE id = ?", (mutasi['id'],))
+        
+        db.execute("DELETE FROM penjualan_detail WHERE penjualan_id = ?", (id,))
+        db.execute("DELETE FROM penjualan WHERE id = ?", (id,))
+        
+        db.commit()
+        flash('Penjualan berhasil dihapus!', 'success')
+        
+    except Exception as e:
+        db.rollback()
+        flash(f'Gagal menghapus penjualan: {str(e)}', 'error')
+    
+    return redirect(url_for('penjualan_index'))
+
+
+# ==================== FASE 4: KARTU STOK + LAPORAN ====================
+
+@app.route('/stok/kartu')
+@has_permission('stok', 'view')
+def stok_kartu():
+    """Kartu stok per item — tampilkan semua mutasi + saldo berjalan."""
+    db = get_db()
+    items = get_items_with_stok()
+    
+    if not items:
+        flash('Belum ada item. Tambah item dulu.', 'error')
+        return redirect(url_for('index'))
+    
+    item_id = request.args.get('item_id', type=int)
+    if not item_id:
+        item_id = items[0]['id']
+    
+    selected_item = db.execute('''
+        SELECT i.*, COALESCE(sa.qty_akhir, 0) as stok_akhir,
+               COALESCE(sa.harga_pokok_rata, 0) as harga_pokok
+        FROM items i
+        LEFT JOIN stok_akhir sa ON i.id = sa.item_id
+        WHERE i.id = ?
+    ''', (item_id,)).fetchone()
+    
+    mutasi = db.execute('''
+        SELECT * FROM stok_mutasi
+        WHERE item_id = ?
+        ORDER BY tanggal DESC, id DESC
+    ''', (item_id,)).fetchall()
+    
+    return render_template('stok/kartu.html',
+                           items=items,
+                           selected_item=selected_item,
+                           mutasi=mutasi)
+
+
+@app.route('/laporan/penjualan')
+@has_permission('laporan', 'view')
+def laporan_penjualan():
+    """Laporan penjualan — semua transaksi + summary."""
+    db = get_db()
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    
+    query = '''
+        SELECT pd.*, p.nomor_transaksi, p.tanggal, pl.nama as pelanggan_nama
+        FROM penjualan_detail pd
+        JOIN penjualan p ON pd.penjualan_id = p.id
+        JOIN pelanggan pl ON p.pelanggan_id = pl.id
+        WHERE 1=1
+    '''
+    params = []
+    
+    if start_date:
+        query += ' AND p.tanggal >= ?'
+        params.append(start_date)
+    if end_date:
+        query += ' AND p.tanggal <= ?'
+        params.append(end_date)
+    
+    query += ' ORDER BY p.tanggal DESC, p.nomor_transaksi ASC'
+    
+    details = db.execute(query, params).fetchall()
+    
+    # Summary
+    total_transaksi = len(set(d['penjualan_id'] for d in details)) if details else 0
+    total_item = sum(d['qty'] for d in details) if details else 0
+    total_penjualan = sum(d['subtotal'] for d in details) if details else 0
+    total_margin = sum(d['subtotal'] - (d['harga_pokok'] * d['qty']) for d in details) if details else 0
+    
+    return render_template('laporan/penjualan.html',
+                           details=details,
+                           start_date=start_date,
+                           end_date=end_date,
+                           total_transaksi=total_transaksi,
+                           total_item=total_item,
+                           total_penjualan=total_penjualan,
+                           total_margin=total_margin)
+
+
+@app.route('/laporan/stok')
+@has_permission('laporan', 'view')
+def laporan_stok():
+    """Laporan stok — semua item + stok akhir + status."""
+    db = get_db()
+    
+    items = db.execute('''
+        SELECT i.*, COALESCE(sa.qty_akhir, 0) as qty_akhir,
+               COALESCE(sa.harga_pokok_rata, 0) as harga_pokok_rata
+        FROM items i
+        LEFT JOIN stok_akhir sa ON i.id = sa.item_id
+        ORDER BY i.nama ASC
+    ''').fetchall()
+    
+    total_items = len(items)
+    total_value = sum(i['qty_akhir'] * i['harga_pokok_rata'] for i in items)
+    low_stock_count = sum(1 for i in items if 0 < i['qty_akhir'] < 10)
+    out_of_stock_count = sum(1 for i in items if i['qty_akhir'] == 0)
+    
+    return render_template('laporan/stok.html',
+                           items=items,
+                           total_items=total_items,
+                           total_value=total_value,
+                           low_stock_count=low_stock_count,
+                           out_of_stock_count=out_of_stock_count)
 
 
 # ==================== TEMPLATE FILTERS ====================

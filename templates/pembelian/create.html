@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Tambah Pembelian - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Tambah Pembelian Baru</h2>
+
+<form method="POST" action="{{ url_for('create_pembelian') }}" class="form" id="pembelian-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    
+    <div class="form-row">
+        <div class="form-group">
+            <label for="supplier_id">Supplier</label>
+            <select id="supplier_id" name="supplier_id" required>
+                <option value="">-- Pilih Supplier --</option>
+                {% for s in suppliers %}
+                <option value="{{ s.id }}" {% if supplier_id == s.id %}selected{% endif %}>{{ s.nama }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="tanggal">Tanggal</label>
+            <input type="date" id="tanggal" name="tanggal" value="{{ tanggal if tanggal else today }}" required>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="catatan">Catatan</label>
+        <textarea id="catatan" name="catatan" rows="2" placeholder="Masukkan catatan (opsional)">{{ catatan if catatan else '' }}</textarea>
+    </div>
+
+    <h3>Detail Item</h3>
+    <table class="data-table" id="detail-table">
+        <thead>
+            <tr>
+                <th scope="col">Item</th>
+                <th scope="col">Qty</th>
+                <th scope="col">Harga Beli</th>
+                <th scope="col">Subtotal</th>
+                <th scope="col">Aksi</th>
+            </tr>
+        </thead>
+        <tbody id="detail-rows">
+            <!-- Dynamic rows will be added here -->
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3" style="text-align: right;"><strong>Total:</strong></td>
+                <td colspan="2"><strong id="total-display">Rp 0</strong></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <button type="button" class="btn btn-secondary" id="add-row-btn">+ Tambah Item</button>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Simpan Pembelian</button>
+        <a href="{{ url_for('pembelian_index') }}" class="btn btn-secondary">Batal</a>
+    </div>
+</form>
+
+<script type="application/json" id="items-data">[
+{% for item in items %}{"id": {{ item.id }}, "nama": {{ item.nama|tojson }}, "harga_pokok": {{ item.harga_pokok }}}{% if not loop.last %},{% endif %}
+{% endfor %}]</script>
+<script src="{{ url_for('static', filename='pembelian.js') }}"></script>
+{% endblock %}

@@ -43,26 +43,5 @@
     </div>
 </form>
 
-<script>
-    const hargaPokokInput = document.getElementById('harga_pokok');
-    const hargaJualInput = document.getElementById('harga_jual');
-    const marginPreview = document.getElementById('marginPreview');
-
-    function updateMargin() {
-        const pokok = parseFloat(hargaPokokInput.value) || 0;
-        const jual = parseFloat(hargaJualInput.value) || 0;
-        const margin = jual - pokok;
-        marginPreview.textContent = 'Rp ' + margin.toLocaleString('id-ID');
-        if (margin > 0) {
-            marginPreview.className = 'margin-preview margin-positive';
-        } else if (margin < 0) {
-            marginPreview.className = 'margin-preview margin-negative';
-        } else {
-            marginPreview.className = 'margin-preview';
-        }
-    }
-
-    hargaPokokInput.addEventListener('input', updateMargin);
-    hargaJualInput.addEventListener('input', updateMargin);
-</script>
+<script src="{{ url_for('static', filename='margin.js') }}"></script>
 {% endblock %}

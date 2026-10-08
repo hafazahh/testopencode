@@ -83,3 +83,60 @@ CREATE TABLE IF NOT EXISTS items (
 | GET | /item/<id>/edit | Form edit item |
 | POST | /item/<id>/edit | Proses edit item |
 | POST | /item/<id>/delete | Hapus item |
+
+---
+
+# Mini ERP — Penjualan, Stok, HPP, Ledger
+
+## Objective
+Menambahkan modul penjualan, stok, HPP, dan sistem ledger ke aplikasi CRUD Item yang sudah ada.
+
+## Aturan Git
+- **JANGAN update git (commit/push) sebelum user bilang "ok" setelah test di development.**
+- User harus test dulu di development, baru boleh deploy.
+
+## Fase
+
+### Fase 1 — Desain skema DB + kartu stok (PALING PENTING, tahan dulu di sini)
+- [ ] Desain tabel: `suppliers`, `purchases`, `purchase_items`, `sales`, `sale_items`, `stock_ledger`
+- [ ] Skema `stock_ledger`: tanggal, item_id, qty_masuk, qty_keluar, saldo_berjalan, keterangan, referensi
+- [ ] HPP (Harga Pokok Penjualan) — metode FIFO atau average?
+- [ ] Validasi: stok tidak boleh negatif
+- [ ] Review user sebelum lanjut
+
+### Fase 2 — Supplier + Pembelian (stok masuk)
+- [ ] CRUD supplier
+- [ ] Form pembelian (pilih supplier, multi-item, qty, harga beli)
+- [ ] Update stok masuk ke `stock_ledger`
+- [ ] Update HPP item (average atau FIFO)
+
+### Fase 3 — Penjualan (stok keluar) + validasi
+- [ ] Form penjualan (pilih item, qty, harga jual)
+- [ ] Validasi stok cukup
+- [ ] Update stok keluar ke `stock_ledger`
+- [ ] Hitung margin (harga_jual - HPP)
+
+### Fase 4 — Kartu stok + laporan
+- [ ] Kartu stok per item (riwayat masuk/keluar + saldo)
+- [ ] Laporan penjualan
+- [ ] Laporan stok (saldo akhir, item menipis)
+
+### Fase 5 — Permission RBAC untuk menu baru
+- [ ] Role: admin, kasir, gudang
+- [ ] Permission per menu: supplier, pembelian, penjualan, stok, laporan
+
+### Fase 6 — Test atomicity + deploy
+- [ ] Test transaksi atomic (rollback saat error)
+- [ ] Test validasi stok negatif
+- [ ] Deploy ke Render + Cloudflare
+- [ ] **HANYA setelah user bilang "ok"**
+
+## Status
+- Fase 1: **IN PROGRESS** — menunggu review user
+- Fase 2–6: pending
+
+---
+
+**Status terkini (2026-10-07):** lihat `.planning/stok-transaksi/task_plan.md` —
+file itu yang aktif dipakai. Fase 1–3 + fix CSP selesai; menunggu user test
+dari copy Google Drive `~/GoogleDrive/AhliPemrograman/testopencodev2/`.

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Laporan Stok - Sistem Inventory{% endblock %}
+
+{% block content %}
+<div class="list-header">
+    <h2>Laporan Stok</h2>
+</div>
+
+<div class="summary-cards">
+    <div class="summary-card">
+        <div class="summary-label">Total Item</div>
+        <div class="summary-value">{{ total_items }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Total Nilai Stok</div>
+        <div class="summary-value">Rp {{ "{:,.0f}".format(total_value) }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Stok Menipis</div>
+        <div class="summary-value">{{ low_stock_count }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Stok Habis</div>
+        <div class="summary-value">{{ out_of_stock_count }}</div>
+    </div>
+</div>
+
+{% if items %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th scope="col">Item</th>
+            <th scope="col">Kategori</th>
+            <th scope="col">Stok</th>
+            <th scope="col">HPP Rata-rata</th>
+            <th scope="col">Nilai Stok</th>
+            <th scope="col">Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for i in items %}
+        <tr>
+            <td>{{ i.nama }}</td>
+            <td>{{ i.category }}</td>
+            <td class="numeric">{{ i.qty_akhir }}</td>
+            <td class="numeric">Rp {{ "{:,.0f}".format(i.harga_pokok_rata) }}</td>
+            <td class="numeric">Rp {{ "{:,.0f}".format(i.qty_akhir * i.harga_pokok_rata) }}</td>
+            <td>
+                {% if i.qty_akhir == 0 %}
+                <span class="badge badge-danger">Habis</span>
+                {% elif i.qty_akhir < 10 %}
+                <span class="badge badge-warning">Menipis</span>
+                {% else %}
+                <span class="badge badge-success">Aman</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>Belum ada data stok.</p>
+</div>
+{% endif %}
+{% endblock %}

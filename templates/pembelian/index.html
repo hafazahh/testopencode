@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Daftar Pembelian - CRUD Item{% endblock %}
+
+{% block content %}
+<div class="list-header">
+    <h2>Daftar Pembelian</h2>
+    {% if 'create' in user_perms.get('pembelian', []) %}
+    <a href="{{ url_for('create_pembelian') }}" class="btn btn-primary">+ Tambah Pembelian</a>
+    {% endif %}
+</div>
+
+{% if pembelian %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th scope="col">No</th>
+                <th scope="col">No. Transaksi</th>
+                <th scope="col">Tanggal</th>
+                <th scope="col">Supplier</th>
+                <th scope="col">Total</th>
+                <th scope="col">Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in pembelian %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ p.nomor_transaksi }}</td>
+                <td>{{ p.tanggal }}</td>
+                <td>{{ p.supplier_nama }}</td>
+                <td>Rp {{ "{:,.0f}".format(p.total) }}</td>
+                <td class="actions">
+                    <a href="{{ url_for('view_pembelian', id=p.id) }}" class="btn btn-sm btn-view">Lihat</a>
+                    {% if 'delete' in user_perms.get('pembelian', []) %}
+                    <form action="{{ url_for('delete_pembelian', id=p.id) }}" method="POST" class="inline-form" data-confirm="Yakin ingin hapus pembelian ini? Stok akan di-rollback.">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm btn-delete">Hapus</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="empty-state">
+        <p>Belum ada pembelian. <a href="{{ url_for('create_pembelian') }}">Tambah pembelian pertama</a></p>
+    </div>
+{% endif %}
+{% endblock %}

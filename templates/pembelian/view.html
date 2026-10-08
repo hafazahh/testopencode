@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}{{ pembelian.nomor_transaksi }} - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Detail Pembelian</h2>
+
+<div class="detail-card">
+    <div class="detail-row">
+        <span class="detail-label">No. Transaksi</span>
+        <span class="detail-value">{{ pembelian.nomor_transaksi }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Tanggal</span>
+        <span class="detail-value">{{ pembelian.tanggal }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Supplier</span>
+        <span class="detail-value">{{ pembelian.supplier_nama }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Catatan</span>
+        <span class="detail-value">{{ pembelian.catatan if pembelian.catatan else '-' }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Dibuat oleh</span>
+        <span class="detail-value">{{ pembelian.created_by_username }}</span>
+    </div>
+    <div class="detail-row">
+        <span class="detail-label">Dibuat pada</span>
+        <span class="detail-value">{{ pembelian.created_at }}</span>
+    </div>
+</div>
+
+<h3>Detail Item</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th scope="col">No</th>
+            <th scope="col">Item</th>
+            <th scope="col">Qty</th>
+            <th scope="col">Harga Beli</th>
+            <th scope="col">Subtotal</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for d in detail %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ d.item_nama }}</td>
+            <td>{{ d.qty }}</td>
+            <td>Rp {{ "{:,.0f}".format(d.harga_beli) }}</td>
+            <td>Rp {{ "{:,.0f}".format(d.subtotal) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4" style="text-align: right;"><strong>Total:</strong></td>
+            <td><strong>Rp {{ "{:,.0f}".format(pembelian.total) }}</strong></td>
+        </tr>
+    </tfoot>
+</table>
+
+<div class="form-actions">
+    {% if 'delete' in user_perms.get('pembelian', []) %}
+    <form action="{{ url_for('delete_pembelian', id=pembelian.id) }}" method="POST" class="inline-form" data-confirm="Yakin ingin hapus pembelian ini? Stok akan di-rollback.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-delete">Hapus</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('pembelian_index') }}" class="btn btn-secondary">Kembali</a>
+</div>
+{% endblock %}

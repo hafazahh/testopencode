@@ -41,3 +41,28 @@
 - User authentication
 - API endpoints (RESTful)
 - Unit tests
+
+## Bug & Issues (2026-10-07)
+
+### Bug: Tombol "+ Tidak Berfungsi" di halaman Pembelian
+- **File:** `templates/pembelian/create.html`
+- **Tombol:** `<button type="button" id="add-row-btn">+ Tambah Item</button>`
+- **JS Function:** `addDetailRow()` — tambah row dinamis ke `#detail-rows`
+- **User report:** Klik tombol tidak nambah row
+- **Root cause:** Perlu debug — kemungkinan JS error atau DOM issue
+- **Status:** ❌ OPEN — belum fixed
+
+### Issue: CSRF 403 saat test dari browser (iPad & laptop)
+- **Symptom:** Login berhasil (302), tapi halaman `/penjualan`, `/supplier` return 403 "akses ditolak"
+- **Test via curl:** ✅ works (200 OK)
+- **Test via Flask test client:** ❌ 403 (CSRF token mismatch)
+- **Root cause:** CSRF token di session vs form tidak cocok. Browser session cookie lama.
+- **Workaround:** Clear browser cookies atau incognito window
+- **Status:** ⚠️ WORKAROUND — bukan bug kode
+
+### Issue: Login CSRF 403 di Flask test client
+- **File:** `app.py` line 371-378 (`csrf_protect()`)
+- **Code:** `secrets.compare_digest(token, session_token)` — strict comparison
+- **Issue:** Token di form HTML beda dengan token di session saat POST
+- **Workaround:** `app.config['WTF_CSRF_ENABLED'] = False` untuk testing
+- **Status:** ⚠️ KNOWN — development only

@@ -36,7 +36,7 @@
                 <a href="{{ url_for('edit_user', id=user.id) }}" class="btn btn-small btn-edit">Edit</a>
                 {% endif %}
                 {% if 'delete' in user_perms.get('users', []) and user.id != current_user.id %}
-                <form method="POST" action="{{ url_for('delete_user', id=user.id) }}" style="display:inline;" onsubmit="return confirm('Hapus user ini?');">
+                <form method="POST" action="{{ url_for('delete_user', id=user.id) }}" style="display:inline;" data-confirm="Hapus user ini?">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn btn-small btn-danger">Hapus</button>
                 </form>

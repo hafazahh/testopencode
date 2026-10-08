@@ -37,7 +37,7 @@
                 {% endif %}
                 {% if 'delete' in user_perms.get('roles', []) %}
                 {% if role.user_count == 0 %}
-                <form method="POST" action="{{ url_for('delete_role', id=role.id) }}" style="display:inline;" onsubmit="return confirm('Hapus role ini?');">
+                <form method="POST" action="{{ url_for('delete_role', id=role.id) }}" style="display:inline;" data-confirm="Hapus role ini?">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn btn-small btn-danger">Hapus</button>
                 </form>

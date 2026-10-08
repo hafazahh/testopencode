@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Tambah Supplier - CRUD Item{% endblock %}
+
+{% block content %}
+<h2>Tambah Supplier Baru</h2>
+
+<form method="POST" action="{{ url_for('create_supplier') }}" class="form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="form-group">
+        <label for="nama">Nama Supplier</label>
+        <input type="text" id="nama" name="nama" value="{{ nama if nama else '' }}" required placeholder="Masukkan nama supplier">
+    </div>
+
+    <div class="form-group">
+        <label for="kontak">Kontak Person</label>
+        <input type="text" id="kontak" name="kontak" value="{{ kontak if kontak else '' }}" placeholder="Masukkan nama kontak (opsional)">
+    </div>
+
+    <div class="form-group">
+        <label for="alamat">Alamat</label>
+        <textarea id="alamat" name="alamat" rows="3" placeholder="Masukkan alamat (opsional)">{{ alamat if alamat else '' }}</textarea>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Simpan</button>
+        <a href="{{ url_for('supplier_index') }}" class="btn btn-secondary">Batal</a>
+    </div>
+</form>
+{% endblock %}

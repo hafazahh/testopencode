@@ -47,7 +47,7 @@
 
 <div class="form-actions">
     <a href="{{ url_for('edit_item', id=item.id) }}" class="btn btn-primary">Edit</a>
-    <form action="{{ url_for('delete_item', id=item.id) }}" method="POST" class="inline-form" onsubmit="return confirm('Yakin ingin hapus item ini?');">
+    <form action="{{ url_for('delete_item', id=item.id) }}" method="POST" class="inline-form" data-confirm="Yakin ingin hapus item ini?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn btn-delete">Hapus</button>
     </form>

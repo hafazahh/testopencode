@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Daftar Supplier - CRUD Item{% endblock %}
+
+{% block content %}
+<div class="list-header">
+    <h2>Daftar Supplier</h2>
+    {% if 'create' in user_perms.get('supplier', []) %}
+    <a href="{{ url_for('create_supplier') }}" class="btn btn-primary">+ Tambah Supplier</a>
+    {% endif %}
+</div>
+
+{% if suppliers %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th scope="col">No</th>
+                <th scope="col">Nama</th>
+                <th scope="col">Kontak</th>
+                <th scope="col">Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in suppliers %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ s.nama }}</td>
+                <td>{{ s.kontak if s.kontak else '-' }}</td>
+                <td class="actions">
+                    <a href="{{ url_for('view_supplier', id=s.id) }}" class="btn btn-sm btn-view">Lihat</a>
+                    {% if 'edit' in user_perms.get('supplier', []) %}
+                    <a href="{{ url_for('edit_supplier', id=s.id) }}" class="btn btn-sm btn-edit">Edit</a>
+                    {% endif %}
+                    {% if 'delete' in user_perms.get('supplier', []) %}
+                    <form action="{{ url_for('delete_supplier', id=s.id) }}" method="POST" class="inline-form" data-confirm="Yakin ingin hapus supplier ini?">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-sm btn-delete">Hapus</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="empty-state">
+        <p>Belum ada supplier. <a href="{{ url_for('create_supplier') }}">Tambah supplier pertama</a></p>
+    </div>
+{% endif %}
+{% endblock %}
