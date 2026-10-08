@@ -398,6 +398,53 @@ Checklist:
 
 ---
 
+## Session Handoff (2026-10-08, Fase 7) — Atomicity + Deploy
+
+### Status sesi
+
+**Fase 7 (Test atomicity + deploy) SELESAI. Semua fase (1-7) selesai.**
+
+### Yang dikerjakan
+
+1. **Test atomicity** — 7/7 passed:
+   - Penjualan gagal → rollback bersih (stok tidak berubah)
+   - Pembelian gagal (qty negatif) → rollback bersih
+   - Validasi stok negatif → ditolak, stok tidak berubah
+   - Penjualan normal → stok berkurang
+   - Pembelian normal → mutasi bertambah
+   - Multi-item atomicity → satu gagal, semua rollback
+2. **Deploy config** — `Procfile` + `render.yaml`
+3. **Push ke GitHub** — commit `f4a4588` pushed ke `master` (auto-deploy aktif)
+4. **Live** — `crud.choirulhaq.com` (Render + Cloudflare)
+
+### Verifikasi
+
+| Uji | Hasil |
+|---|---|
+| `test_fase7.py` | **7/7 passed** |
+| `test_fase2.py` | 18 ✅, 0 ❌ |
+| `test_fase3.py` | 31 ✅, 5 ❌ (data drift) |
+| `test_fase4.py` | 15 ✅, 0 ❌ |
+| `test_fase5.py` | 8 ✅, 0 ❌ |
+| `test_fase6.py` | 10 ✅, 0 ❌ |
+| `verify_security.py` | **ALL CHECKS PASSED** |
+
+### Deploy Info
+
+- **Repo:** `hafazahh/testopencode` (GitHub)
+- **Branch:** `master` (auto-deploy aktif)
+- **Commit:** `f4a4588`
+- **Service ID:** `srv-db0tbs9srm7s7393dab0`
+- **Domain:** `crud.choirulhaq.com`
+- **Platform:** Render (Python 3, Free) + Cloudflare
+- **Region:** Singapore
+
+### Next steps
+
+- **Fase 8** (kalau ada) — fitur tambahan atau perbaikan bug dari user test
+
+---
+
 ## ⏭️ RESUME DI SINI (sesi baru, 2026-10-08)
 
 ### 5 pertanyaan reboot — jawaban
